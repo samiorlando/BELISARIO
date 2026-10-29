@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sami Orlando - Iniciar Sesión</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --bg-deep: #080d1a;
+            --bg-card: rgba(15, 23, 42, 0.78);
+            --border-glass: rgba(255, 255, 255, 0.08);
+            --border-glow: rgba(6, 182, 212, 0.35);
+            --accent-cyan: #06b6d4;
+            --accent-blue: #3b82f6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: radial-gradient(circle at 50% 10%, #1e3a8a 0%, #0b1120 40%, #050811 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: var(--text-main);
+        }
+        
+        .login-container {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--border-glow);
+            border-radius: 20px;
+            box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 35px rgba(6, 182, 212, 0.15);
+            overflow: hidden;
+            max-width: 420px;
+            width: 100%;
+            animation: cardAppear 0.5s ease-out;
+        }
+
+        @keyframes cardAppear {
+            from { opacity: 0; transform: translateY(15px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        
+        .login-header {
+            padding: 34px 30px 24px;
+            text-align: center;
+            border-bottom: 1px solid var(--border-glass);
+            position: relative;
+        }
+
+        .login-icon {
+            width: 52px;
+            height: 52px;
+            background: linear-gradient(135deg, #06b6d4 0%, #3b82f6 50%, #8b5cf6 100%);
+            border-radius: 14px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 26px;
+            margin-bottom: 12px;
+            box-shadow: 0 0 25px rgba(6, 182, 212, 0.5);
+        }
+        
+        .login-header h1 {
+            font-size: 22px;
+            font-weight: 800;
+            background: linear-gradient(90deg, #ffffff 0%, #a5f3fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 4px;
+        }
+        
+        .login-header p {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+        
+        .login-body {
+            padding: 28px 30px 34px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            margin-bottom: 24px;
+            border-radius: 10px;
+            overflow: hidden;
+            background: rgba(11, 17, 32, 0.6);
+            border: 1px solid var(--border-glass);
+            padding: 4px;
+            gap: 4px;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 9px;
+            border: none;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-weight: 700;
+            font-size: 13px;
+            border-radius: 7px;
+            transition: all 0.25s ease;
+            font-family: inherit;
+        }
+        
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(6, 182, 212, 0.25) 0%, rgba(59, 130, 246, 0.35) 100%);
+            color: white;
+            box-shadow: 0 2px 10px rgba(6, 182, 212, 0.3);
+            border: 1px solid rgba(6, 182, 212, 0.4);
+        }
+        
+        .form-group {
+            margin-bottom: 18px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--text-muted);
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px 14px;
+            background: rgba(11, 17, 32, 0.7);
+            border: 1px solid var(--border-glass);
+            border-radius: 10px;
+            font-size: 14px;
+            color: white;
+            outline: none;
+            transition: all 0.25s;
+            font-family: inherit;
+        }
+        
+        .form-group input:focus {
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 15px rgba(6, 182, 212, 0.3);
+            background: rgba(15, 23, 42, 0.95);
+        }
+        
+        .login-btn {
+            width: 100%;
+            padding: 13px;
+            background: linear-gradient(135deg, #06b6d4 0%, #0284c7 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 4px 18px rgba(6, 182, 212, 0.4);
+            transition: all 0.25s ease;
+            font-family: inherit;
+            margin-top: 6px;
+        }
+        
+        .login-btn:hover {
+            box-shadow: 0 6px 24px rgba(6, 182, 212, 0.6);
+            transform: translateY(-1px);
+        }
+
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .error-message {
+            color: #fda4af;
+            background: rgba(244, 63, 94, 0.15);
+            border: 1px solid rgba(244, 63, 94, 0.35);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 12px;
+            margin-top: 14px;
+            text-align: center;
+            display: none;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-header">
+            <div class="login-icon">⚡</div>
+            <h1>SAMI ORLANDO</h1>
+            <p>Monitoreo GPS Satelital en Tiempo Real</p>
+        </div>
+        <div class="login-body">
+            <div class="tab-buttons">
+                <button type="button" class="tab-btn active" onclick="changeTab('admin')">Administrador</button>
+                <button type="button" class="tab-btn" onclick="changeTab('unidad')">Unidad Chofer</button>
+            </div>
+            
+            <!-- Formulario Admin -->
+            <div id="form-admin">
+                <div class="form-group">
+                    <label for="admin-username">Usuario</label>
+                    <input type="text" id="admin-username" placeholder="Ingrese su usuario" autocomplete="username">
+                </div>
+                <div class="form-group">
+                    <label for="admin-password">Contraseña</label>
+                    <input type="password" id="admin-password" placeholder="••••••••" autocomplete="current-password">
+                </div>
+                <button type="button" class="login-btn" onclick="loginAdmin()">Ingresar al Sistema</button>
+            </div>
+            
+            <!-- Formulario Unidad -->
+            <div id="form-unidad" class="hidden">
+                <div class="form-group">
+                    <label for="codigo-unidad">Código de Unidad</label>
+                    <input type="text" id="codigo-unidad" placeholder="Ej: BUS-001">
+                </div>
+                <button type="button" class="login-btn" onclick="loginUnidad()">Ingresar como Chofer</button>
+            </div>
+            
+            <div class="error-message" id="error-message"></div>
+        </div>
+    </div>
+
+    <script>
+        let currentTab = 'admin';
+        
+        function changeTab(tab) {
+            currentTab = tab;
+            const buttons = document.querySelectorAll('.tab-btn');
+            buttons.forEach((btn, idx) => {
+                if ((tab === 'admin' && idx === 0) || (tab === 'unidad' && idx === 1)) {
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.remove('active');
+                }
+            });
+            
+            if (tab === 'admin') {
+                document.getElementById('form-admin').classList.remove('hidden');
+                document.getElementById('form-unidad').classList.add('hidden');
+            } else {
+                document.getElementById('form-admin').classList.add('hidden');
+                document.getElementById('form-unidad').classList.remove('hidden');
+            }
+            document.getElementById('error-message').style.display = 'none';
+        }
+        
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+        
+        async function loginAdmin() {
+            const username = document.getElementById('admin-username').value.trim();
+            const password = document.getElementById('admin-password').value.trim();
+            
+            if (!username || !password) {
+                showError('Por favor ingrese su usuario y contraseña');
+                return;
+            }
+
+            const esCredencialValida = (username.toLowerCase() === 'admin' && password === 'admin123');
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tipo: 'admin', username, password })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    sessionStorage.setItem('adminSession', 'active');
+                    localStorage.setItem('adminSession', 'active');
+                    localStorage.setItem('adminUser', 'admin');
+                    window.location.href = (window.location.protocol === 'file:') ? 'admin.html' : '/admin';
+                    return;
+                } else {
+                    showError('Usuario o contraseña incorrectos');
+                    return;
+                }
+            } catch (error) {
+                console.warn('API no disponible temporalmente, validando credenciales locales');
+            }
+
+            // Fallback en modo local (file://)
+            if (esCredencialValida) {
+                sessionStorage.setItem('adminSession', 'active');
+                localStorage.setItem('adminSession', 'active');
+                localStorage.setItem('adminUser', 'admin');
+                window.location.href = (window.location.protocol === 'file:') ? 'admin.html' : '/admin';
+            } else {
+                showError('Usuario o contraseña incorrectos');
+            }
+        }
+        
+        async function loginUnidad() {
+            const codigoUnidad = document.getElementById('codigo-unidad').value.trim();
+            
+            if (!codigoUnidad) {
+                showError('Por favor ingrese el código de unidad');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ tipo: 'unidad', codigoUnidad })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    localStorage.setItem('codigoUnidad', codigoUnidad);
+                    localStorage.setItem('unidadNombre', data.unidad?.nombre || codigoUnidad);
+                    window.location.href = (window.location.protocol === 'file:') ? 'unidad.html' : '/unidad';
+                } else {
+                    showError(data.message);
+                }
+            } catch (error) {
+                if (window.location.protocol === 'file:') {
+                    localStorage.setItem('codigoUnidad', codigoUnidad);
+                    localStorage.setItem('unidadNombre', 'Unidad ' + codigoUnidad);
+                    window.location.href = 'unidad.html';
+                    return;
+                }
+                showError('Error al conectar con el servidor');
+            }
+        }
+        
+        document.getElementById('admin-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loginAdmin();
+        });
+        document.getElementById('codigo-unidad').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') loginUnidad();
+        });
+    </script>
+</body>
+</html>

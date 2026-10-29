@@ -1,0 +1,2615 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Consola Chofer - GPS Sami Orlando</title>
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Rajdhani:wght@600;700&display=swap" rel="stylesheet">
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        :root {
+            --bg-deep: #080d1a;
+            --bg-card: rgba(15, 23, 42, 0.88);
+            --border-glass: rgba(255, 255, 255, 0.1);
+            --accent-cyan: #06b6d4;
+            --accent-emerald: #10b981;
+            --accent-rose: #f43f5e;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-touch-callout: none;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background: #000;
+            color: var(--text-main);
+            overflow: hidden;
+            height: 100vh;
+            width: 100vw;
+        }
+
+        /* Barra Superior del Conductor */
+        .driver-header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 64px;
+            background: rgba(11, 17, 32, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid var(--border-glass);
+            padding: 0 16px;
+            z-index: 1000;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .driver-brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .driver-icon-avatar {
+            width: 38px;
+            height: 38px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            box-shadow: 0 0 15px rgba(16, 185, 129, 0.5);
+        }
+
+        .driver-info h2 {
+            font-size: 15px;
+            font-weight: 700;
+            color: white;
+            line-height: 1.2;
+        }
+
+        .driver-info p {
+            font-size: 11px;
+            color: var(--text-muted);
+            font-family: 'Rajdhani', monospace;
+            font-weight: 600;
+        }
+
+        .gps-status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            background: rgba(16, 185, 129, 0.15);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            border-radius: 20px;
+        }
+
+        .gps-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+            animation: pulseGps 1.8s infinite;
+        }
+
+        @keyframes pulseGps {
+            0% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.4; transform: scale(0.85); }
+            100% { opacity: 1; transform: scale(1); }
+        }
+
+        /* Pill de Estado de Conexión de Red / Offline */
+        .network-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 20px;
+            transition: all 0.25s ease;
+            cursor: pointer;
+            user-select: none;
+        }
+        .network-status-pill.net-online {
+            background: rgba(16, 185, 129, 0.18);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+        .network-status-pill.net-offline {
+            background: rgba(245, 158, 11, 0.2);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.5);
+        }
+        .network-status-pill.net-reconnecting {
+            background: rgba(56, 189, 248, 0.2);
+            color: #38bdf8;
+            border: 1px solid rgba(56, 189, 248, 0.5);
+        }
+        .net-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            transition: all 0.25s ease;
+            display: inline-block;
+        }
+        .net-online .net-status-dot {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+        .net-offline .net-status-dot {
+            background: #f59e0b;
+            box-shadow: 0 0 8px #f59e0b;
+            animation: pulseGps 1.2s infinite;
+        }
+        .net-reconnecting .net-status-dot {
+            background: #38bdf8;
+            box-shadow: 0 0 8px #38bdf8;
+            animation: pulseGps 0.6s infinite;
+        }
+
+        @keyframes pulseBanner {
+            0% { transform: translateX(-50%) scale(1); box-shadow: 0 15px 40px rgba(0,0,0,0.8), 0 0 15px rgba(16,185,129,0.4); }
+            50% { transform: translateX(-50%) scale(1.02); box-shadow: 0 18px 45px rgba(0,0,0,0.9), 0 0 30px rgba(16,185,129,0.7); }
+            100% { transform: translateX(-50%) scale(1); box-shadow: 0 15px 40px rgba(0,0,0,0.8), 0 0 15px rgba(16,185,129,0.4); }
+        }
+
+        .btn-exit-glass {
+            background: rgba(244, 63, 94, 0.18);
+            color: #fda4af;
+            border: 1px solid rgba(244, 63, 94, 0.35);
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-exit-glass:hover {
+            background: #f43f5e;
+            color: white;
+        }
+
+        /* Botón de Estado / Prueba de Audio */
+        .audio-pill-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 5px 12px;
+            background: rgba(6, 182, 212, 0.15);
+            color: #38bdf8;
+            border: 1px solid rgba(6, 182, 212, 0.35);
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .audio-pill-btn:hover {
+            background: rgba(6, 182, 212, 0.3);
+            transform: scale(1.02);
+        }
+        .audio-pill-btn.audio-active {
+            background: rgba(16, 185, 129, 0.18);
+            color: #34d399;
+            border-color: rgba(16, 185, 129, 0.4);
+        }
+        .audio-status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #38bdf8;
+            box-shadow: 0 0 8px #38bdf8;
+            display: inline-block;
+        }
+        .audio-pill-btn.audio-active .audio-status-dot {
+            background: #10b981;
+            box-shadow: 0 0 8px #10b981;
+        }
+        .btn-paradero-audio {
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: #38bdf8;
+            padding: 2px 7px;
+            border-radius: 6px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-paradero-audio:hover {
+            background: rgba(6, 182, 212, 0.3);
+            border-color: #06b6d4;
+            color: white;
+        }
+
+        /* Botones de Selección de Carril en HUD Chofer */
+        .btn-carril-hud {
+            padding: 3px 8px;
+            font-size: 10px;
+            font-weight: 700;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-carril-hud:hover {
+            color: white;
+            background: rgba(255, 255, 255, 0.12);
+        }
+        .btn-carril-hud.active {
+            background: rgba(6, 182, 212, 0.25);
+            color: #38bdf8;
+            border-color: #06b6d4;
+            box-shadow: 0 0 10px rgba(6, 182, 212, 0.3);
+        }
+
+        /* Contenedor Viewport estándar 2D (Plano sin inclinación) */
+        #map-viewport {
+            position: fixed;
+            top: 64px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: calc(100vh - 64px);
+            z-index: 1;
+            background: #080d1a;
+            overflow: hidden;
+        }
+
+        .bus-driver-marker {
+            transition: transform 0.75s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+            will-change: transform;
+        }
+        #map {
+            width: 100%;
+            height: 100%;
+            background: #080d1a;
+            transform: none !important;
+        }
+
+        /* Pastillas de Hora y Recorrido en Barra Superior */
+        .driver-time-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 18px;
+            font-family: 'Rajdhani', sans-serif;
+            letter-spacing: 0.5px;
+        }
+        .driver-trip-pill {
+            background: rgba(6, 182, 212, 0.16);
+            color: #38bdf8;
+            border: 1px solid rgba(6, 182, 212, 0.35);
+            font-size: 13px;
+        }
+        .driver-clock-pill {
+            background: rgba(255, 255, 255, 0.08);
+            color: #f8fafc;
+            border: 1px solid rgba(255, 255, 255, 0.14);
+            font-size: 13px;
+        }
+
+        /* Pastilla de Estado de Tráfico */
+        .traffic-status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 18px;
+            cursor: pointer;
+            transition: all 0.25s;
+        }
+        .traffic-status-pill.traffic-fluid {
+            background: rgba(16, 185, 129, 0.16);
+            color: #34d399;
+            border: 1px solid rgba(16, 185, 129, 0.35);
+        }
+        .traffic-status-pill.traffic-moderate {
+            background: rgba(245, 158, 11, 0.18);
+            color: #fbbf24;
+            border: 1px solid rgba(245, 158, 11, 0.4);
+        }
+        .traffic-status-pill.traffic-congested {
+            background: rgba(244, 63, 94, 0.25);
+            color: #f87171;
+            border: 1px solid rgba(244, 63, 94, 0.6);
+            animation: pulseTrafficPill 1.2s infinite;
+        }
+        @keyframes pulseTrafficPill {
+            0% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(244, 63, 94, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0); }
+        }
+        .traffic-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+            box-shadow: 0 0 6px currentColor;
+        }
+
+        /* Visualizador de Carril 3D (Cockpit HUD) */
+        .lane-3d-cockpit {
+            position: fixed;
+            bottom: 14px;
+            left: 14px;
+            right: 14px;
+            max-width: 560px;
+            margin: 0 auto;
+            background: rgba(11, 17, 32, 0.92);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-radius: 14px;
+            border: 1px solid var(--border-glass);
+            z-index: 990;
+            box-shadow: 0 12px 35px rgba(0,0,0,0.7);
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+        .cockpit-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.03);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            font-size: 11px;
+            font-weight: 700;
+        }
+        .btn-quick-traffic {
+            background: rgba(244, 63, 94, 0.15);
+            color: #fda4af;
+            border: 1px solid rgba(244, 63, 94, 0.35);
+            border-radius: 8px;
+            padding: 2px 7px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+        .btn-quick-traffic:hover {
+            background: #f43f5e;
+            color: white;
+        }
+        .road-3d-scene { display: none !important; 
+            height: 86px;
+            position: relative;
+            background: linear-gradient(180deg, #070d1d 0%, #0f172a 50%, #1e293b 100%);
+            perspective: 260px;
+            perspective-origin: 50% 25%;
+            overflow: hidden;
+        }
+        .road-surface-3d {
+            position: absolute;
+            top: 14px;
+            left: 12%;
+            right: 12%;
+            bottom: 0;
+            background: #0f172a;
+            transform: rotateX(46deg);
+            transform-origin: center bottom;
+            border-left: 4px solid #f59e0b;
+            border-right: 4px solid #06b6d4;
+            box-shadow: 0 -10px 25px rgba(0,0,0,0.85);
+            display: flex;
+        }
+        .lane-strip {
+            flex: 1;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: background 0.25s;
+        }
+        .lane-bajada-strip {
+            background: rgba(245, 158, 11, 0.06);
+        }
+        .lane-subida-strip {
+            background: rgba(6, 182, 212, 0.06);
+        }
+        .lane-strip.is-active-lane {
+            background: rgba(56, 189, 248, 0.22);
+        }
+        .lane-floor-lbl {
+            font-size: 9px;
+            font-weight: 800;
+            color: rgba(255, 255, 255, 0.45);
+            letter-spacing: 0.5px;
+            text-align: center;
+            user-select: none;
+            pointer-events: none;
+        }
+        .lane-strip.is-active-lane .lane-floor-lbl {
+            color: #38bdf8;
+            text-shadow: 0 0 8px rgba(56, 189, 248, 0.5);
+        }
+        .lane-center-line {
+            width: 3px;
+            height: 100%;
+            background: repeating-linear-gradient(to bottom, #ffffff 0px, #ffffff 10px, transparent 10px, transparent 20px);
+            animation: roadMove 0.8s linear infinite;
+        }
+        @keyframes roadMove {
+            0% { background-position: 0 0; }
+            100% { background-position: 0 20px; }
+        }
+        .bus-cockpit-marker {
+            position: absolute;
+            bottom: 10px;
+            filter: drop-shadow(0 4px 10px rgba(0,0,0,0.9));
+            transition: left 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        .bus-icon-glow {
+            font-size: 24px;
+            filter: drop-shadow(0 0 10px #10b981);
+            animation: busBob 1.6s ease-in-out infinite alternate;
+        }
+        @keyframes busBob {
+            0% { transform: translateY(0); }
+            100% { transform: translateY(-3px); }
+        }
+        .bus-lane-tag {
+            font-size: 8px;
+            font-weight: 800;
+            background: rgba(16, 185, 129, 0.9);
+            color: white;
+            padding: 1px 4px;
+            border-radius: 4px;
+            margin-top: -2px;
+            white-space: nowrap;
+        }
+        .cockpit-next-stop-marker {
+            position: absolute;
+            top: 4px;
+            right: 4px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(56, 189, 248, 0.4);
+            border-radius: 8px;
+            padding: 2px 6px;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.7);
+            pointer-events: none;
+        }
+        .stop-flag {
+            color: #38bdf8;
+            font-weight: 700;
+            white-space: nowrap;
+            max-width: 130px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .stop-dist-tag {
+            color: #34d399;
+            font-weight: 800;
+            font-family: 'Rajdhani', sans-serif;
+        }
+        .cockpit-telemetry-row {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            padding: 6px 10px;
+            background: rgba(0, 0, 0, 0.35);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            text-align: center;
+            gap: 4px;
+        }
+        .cockpit-tele-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .tele-lbl {
+            font-size: 9px;
+            font-weight: 700;
+            color: var(--text-muted);
+            letter-spacing: 0.3px;
+        }
+        .tele-val {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 13px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+        .text-cyan { color: #38bdf8 !important; }
+        .text-emerald { color: #34d399 !important; }
+        .text-rose { color: #f43f5e !important; }
+        .text-amber { color: #fbbf24 !important; }
+
+        /* Modal Alerta de Tráfico en Pantalla */
+        .traffic-alert-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.78);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            animation: fadeInAlert 0.25s ease-out;
+        }
+        @keyframes fadeInAlert {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        .traffic-alert-card {
+            max-width: 480px;
+            width: 100%;
+            background: linear-gradient(135deg, rgba(30, 10, 20, 0.96) 0%, rgba(15, 23, 42, 0.98) 100%);
+            border: 2px solid #f43f5e;
+            box-shadow: 0 20px 60px rgba(244, 63, 94, 0.4), 0 0 35px rgba(244, 63, 94, 0.3);
+            border-radius: 18px;
+            padding: 24px;
+            color: white;
+            text-align: center;
+            animation: scaleInAlert 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+        @keyframes scaleInAlert {
+            from { transform: scale(0.85); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+        .traffic-alert-icon-ring {
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: rgba(244, 63, 94, 0.2);
+            border: 2px solid #f43f5e;
+            margin: 0 auto 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            animation: pulseBeacon 1s infinite alternate;
+        }
+        @keyframes pulseBeacon {
+            0% { transform: scale(1); box-shadow: 0 0 10px rgba(244, 63, 94, 0.5); }
+            100% { transform: scale(1.1); box-shadow: 0 0 25px rgba(244, 63, 94, 0.9); }
+        }
+        .traffic-alert-badge-top {
+            font-size: 11px;
+            font-weight: 800;
+            color: #fda4af;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+        .traffic-alert-heading {
+            font-size: 20px;
+            font-weight: 800;
+            color: #ffffff;
+            line-height: 1.2;
+            margin-bottom: 10px;
+        }
+        .traffic-alert-msg {
+            font-size: 13px;
+            color: #cbd5e1;
+            line-height: 1.45;
+            margin-bottom: 16px;
+        }
+        .traffic-alert-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            padding: 10px;
+            margin-bottom: 18px;
+        }
+        .traffic-metric-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .tm-lbl {
+            font-size: 10px;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+        .tm-val {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 15px;
+            font-weight: 700;
+            color: #f8fafc;
+        }
+        .traffic-alert-actions-row {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-emerald-alert {
+            flex: 1;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+        .btn-emerald-alert:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+        }
+        .btn-voice-alert {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            padding: 12px 16px;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-voice-alert:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Panel Flotante Inferior HUD */
+        .hud-driver-panel {
+            position: fixed;
+            bottom: 18px;
+            left: 14px;
+            right: 14px;
+            max-width: 540px;
+            margin: 0 auto;
+            background: var(--bg-card);
+            backdrop-filter: blur(18px);
+            -webkit-backdrop-filter: blur(18px);
+            padding: 16px;
+            border-radius: 16px;
+            border: 1px solid var(--border-glass);
+            z-index: 1000;
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.7);
+            max-height: 250px;
+            overflow-y: auto;
+        }
+
+        .hud-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+            padding-bottom: 8px;
+        }
+
+        .hud-speedometer {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: #34d399;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .hud-coords {
+            font-family: monospace;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+
+        .paradero-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 8px;
+            margin-bottom: 6px;
+            font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .paradero-dist-badge {
+            font-family: 'Rajdhani', sans-serif;
+            font-size: 14px;
+            font-weight: 700;
+            color: #38bdf8;
+            background: rgba(6, 182, 212, 0.15);
+            padding: 2px 8px;
+            border-radius: 6px;
+        }
+    </style>
+</head>
+<body>
+
+    <header class="driver-header">
+        <div class="driver-brand">
+            <div class="driver-icon-avatar">🚍</div>
+            <div class="driver-info">
+                <h2><span id="unidad-nombre">Cargando...</span></h2>
+                <p>CÓDIGO: <span id="unidad-codigo">-</span></p>
+            </div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <!-- Hora y Minuto del Recorrido -->
+            <div class="driver-time-pill driver-trip-pill" title="Tiempo transcurrido en el recorrido actual (Horas y Minutos)">
+                <span>⏱️</span>
+                <span id="driver-trip-time">00h 00m</span>
+            </div>
+            <div class="driver-time-pill driver-clock-pill" title="Hora actual del sistema">
+                <span>🕒</span>
+                <span id="driver-live-clock">--:--</span>
+            </div>
+
+            <!-- Estado y Alerta de Tráfico en Cabecera -->
+            <div class="traffic-status-pill traffic-fluid" id="driver-traffic-pill" onclick="mostrarDetalleAlertaTrafico()" title="Condición de tráfico en la ruta (Toca para ver reporte / probar alerta)">
+                <span class="traffic-dot"></span>
+                <span id="driver-traffic-text">Vía Fluida</span>
+            </div>
+
+            
+
+            <button type="button" class="audio-pill-btn" style="border-color: rgba(56, 189, 248, 0.4); color: #38bdf8;" onclick="centrarRutaAntaCuscoChofer()" title="Ver la ruta completa Anta - Cusco en el mapa">
+                🛣️ Ruta
+            </button>
+            <button type="button" id="btn-tarjeta-control" class="audio-pill-btn" style="border-color: rgba(16, 185, 129, 0.4); color: #34d399;" onclick="toggleTarjetaControlChofer()" title="Ver historial y tiempos de paraderos registrados en esta vuelta">
+                📋 Hoja de Ruta (<span id="count-paraderos-registrados">0</span>)
+            </button>
+            <button type="button" id="btn-audio-status" class="audio-pill-btn" onclick="activarYProbarAudioUnidad()" title="Toca para desbloquear y probar los anuncios de voz">
+                <span class="audio-status-dot" id="audio-dot"></span>
+                <span id="audio-status-text">🔊 Audio</span>
+            </button>
+            <div class="gps-status-pill">
+                <span class="gps-status-dot"></span>
+                <span>GPS</span>
+            </div>
+            <!-- Indicador de Red y Reconexión Instantánea -->
+            <div class="network-status-pill net-online" id="net-status-pill" onclick="forzarReconexionInmediata()" title="Estado de conexión en vivo con el servidor. Toca para reconectar al instante">
+                <span class="net-status-dot" id="net-dot"></span>
+                <span id="net-status-text">En Línea</span>
+            </div>
+            <button type="button" class="btn-exit-glass" onclick="salir()">Salir</button>
+        </div>
+    </header>
+
+    <!-- Banner Flotante para Activar Audio GPS en Celular -->
+    <div id="banner-audio-movil" style="position: fixed; top: 68px; left: 50%; transform: translateX(-50%); z-index: 999998; width: 92%; max-width: 460px; background: linear-gradient(135deg, rgba(16, 185, 129, 0.95), rgba(6, 182, 212, 0.95)); border: 2px solid white; border-radius: 14px; padding: 10px 16px; box-shadow: 0 15px 40px rgba(0,0,0,0.8), 0 0 25px rgba(16,185,129,0.5); color: white; display: flex; align-items: center; justify-content: space-between; gap: 10px; cursor: pointer; animation: pulseBanner 2.2s infinite;" onclick="desbloquearAudioTotal()">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 24px;">🔊</span>
+            <div>
+                <div style="font-weight: 800; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px;">Toca aquí para Activar Audio GPS</div>
+                <div style="font-size: 11px; opacity: 0.95;">Anunciará automáticamente cada paradero al entrar</div>
+            </div>
+        </div>
+        <button type="button" style="background: white; color: #0f172a; border: none; font-weight: 800; font-size: 11px; padding: 6px 12px; border-radius: 8px; cursor: pointer; flex-shrink: 0; box-shadow: 0 3px 8px rgba(0,0,0,0.3);">
+            ACTIVAR
+        </button>
+    </div>
+
+    <!-- Contenedor Viewport 3D del Mapa -->
+    <div id="map-viewport">
+        <div id="map"></div>
+    </div>
+
+    <!-- Visualizador 3D de Carril en Cabina (Cockpit 3D) -->
+    <div id="lane-3d-cockpit" class="lane-3d-cockpit">
+        <div class="cockpit-top-bar">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 13px;" id="cockpit-carril-icon">⬆️</span>
+                <strong id="cockpit-carril-text" style="color: #38bdf8;">CARRIL SUBIDA (CUSCO ➔ ANTA)</strong>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span id="cockpit-traffic-badge" style="font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 10px; background: rgba(16,185,129,0.2); color: #34d399;">
+                    🟢 Tráfico Normal
+                </span>
+                <button type="button" class="btn-quick-traffic" onclick="activarAlertaTraficoManual()" title="Probar / Simular alerta de tráfico en pantalla">
+                    ⚠️ Simular Tráfico
+                </button>
+            </div>
+        </div>
+
+        <div class="road-3d-scene">
+            <div class="road-surface-3d">
+                <div class="lane-strip lane-bajada-strip" id="strip-bajada" onclick="cambiarCarrilUnidad('bajada')" title="Toca para seleccionar carril de Bajada">
+                    <span class="lane-floor-lbl">⬇️ BAJADA (ANTA ➔ CUSCO)</span>
+                </div>
+                <div class="lane-center-line"></div>
+                <div class="lane-strip lane-subida-strip is-active-lane" id="strip-subida" onclick="cambiarCarrilUnidad('subida')" title="Toca para seleccionar carril de Subida">
+                    <span class="lane-floor-lbl">⬆️ SUBIDA (CUSCO ➔ ANTA)</span>
+                </div>
+
+                <!-- Avatar 3D de la unidad en el carril -->
+                <div class="bus-cockpit-marker" id="cockpit-bus-marker" style="left: 75%;">
+                    <div class="bus-icon-glow">🚍</div>
+                    <div class="bus-lane-tag" id="cockpit-unit-tag">EN CARRIL 3D</div>
+                </div>
+
+                <!-- Hito 3D del próximo paradero en el horizonte de la vía -->
+                <div class="cockpit-next-stop-marker" id="cockpit-next-stop-marker">
+                    <div class="stop-flag">🚏 <span id="cockpit-stop-name">Cargando paradero...</span></div>
+                    <div class="stop-dist-tag" id="cockpit-stop-dist">-- m</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Telemetría en tiempo real: Hora y Minuto del Recorrido -->
+        <div class="cockpit-telemetry-row">
+            <div class="cockpit-tele-item">
+                <span class="tele-lbl">⏱️ EN RECORRIDO</span>
+                <span class="tele-val text-cyan" id="cockpit-trip-timer">00h 00m</span>
+            </div>
+            <div class="cockpit-tele-item">
+                <span class="tele-lbl">🕒 HORA ACTUAL</span>
+                <span class="tele-val" id="cockpit-clock">--:--</span>
+            </div>
+            <div class="cockpit-tele-item">
+                <span class="tele-lbl">⚡ VELOCIDAD</span>
+                <span class="tele-val text-emerald" id="cockpit-speed-val">0 km/h</span>
+            </div>
+            <div class="cockpit-tele-item">
+                <span class="tele-lbl">🚦 CONDICIÓN VÍA</span>
+                <span class="tele-val" id="cockpit-traffic-status" style="color: #34d399;">Fluido</span>
+            </div>
+        </div>
+    </div>
+
+    
+    <!-- Modal Hoja de Ruta / Historial de Paraderos para el Chofer -->
+    <div id="modal-tarjeta-control" class="traffic-alert-modal" style="display: none; z-index: 1200;">
+        <div class="traffic-alert-card" style="max-width: 500px; width: 92%; max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.1); padding-bottom: 12px; margin-bottom: 12px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 22px;">📋</span>
+                    <div>
+                        <h3 style="font-size: 15px; color: white; margin: 0;">Hoja de Ruta y Tiempos de Paraderos</h3>
+                        <p style="font-size: 11px; color: #94a3b8; margin: 0;">Unidad <span id="tc-modal-unit">-</span> | Sentido: <strong id="tc-modal-carril" style="color: #38bdf8;">Subida (Cusco ➔ Anta)</strong></p>
+                    </div>
+                </div>
+                <button type="button" onclick="toggleTarjetaControlChofer()" style="background: none; border: none; color: #94a3b8; font-size: 22px; cursor: pointer; line-height: 1;">✕</button>
+            </div>
+            
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 14px;">
+                <div style="background: rgba(255,255,255,0.04); padding: 8px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 10px; color: #94a3b8;">TIEMPO EN RUTA</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #38bdf8;" id="tc-modal-tiempo">00h 00m</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); padding: 8px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 10px; color: #94a3b8;">PARADEROS REG.</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #10b981;" id="tc-modal-total-p">0</div>
+                </div>
+                <div style="background: rgba(255,255,255,0.04); padding: 8px; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 10px; color: #94a3b8;">VEL. ACTUAL</div>
+                    <div style="font-size: 14px; font-weight: 700; color: #fbbf24;" id="tc-modal-vel">0 km/h</div>
+                </div>
+            </div>
+
+            <div id="tc-modal-lista" style="overflow-y: auto; flex: 1; max-height: 45vh; padding-right: 4px; display: flex; flex-direction: column; gap: 6px;">
+                <!-- Lista de paraderos cruzados inyectada por JS -->
+            </div>
+
+            <div style="display: flex; gap: 8px; margin-top: 14px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.1);">
+                <button type="button" class="btn btn-emerald-alert" style="flex: 1; padding: 10px; font-size: 12px;" onclick="reiniciarVueltaChofer()">
+                    🔄 Iniciar Nueva Vuelta
+                </button>
+                <button type="button" class="btn btn-emerald-alert" style="background: rgba(255,255,255,0.1); color: white; flex: 1; padding: 10px; font-size: 12px;" onclick="toggleTarjetaControlChofer()">
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal / Alerta de Tráfico en Pantalla -->
+    <div id="traffic-alert-modal" class="traffic-alert-modal" style="display: none;">
+        <div class="traffic-alert-card">
+            <div class="traffic-alert-icon-ring">⚠️</div>
+            <div class="traffic-alert-badge-top">¡ALERTA DE TRÁFICO EN PANTALLA!</div>
+            <h2 class="traffic-alert-heading">CONGESTIÓN VEHICULAR DETECTADA</h2>
+            <p class="traffic-alert-msg" id="traffic-alert-desc">
+                Se detecta congestión de tráfico y marcha lenta en la vía (PE-3S Anta - Cusco). Retraso estimado: <strong>+10 a 15 min</strong>. Reduzca la velocidad y conduzca con precaución.
+            </p>
+            <div class="traffic-alert-metrics-grid">
+                <div class="traffic-metric-card">
+                    <span class="tm-lbl">Velocidad Actual</span>
+                    <span class="tm-val" id="traffic-alert-speed-val">0 km/h</span>
+                </div>
+                <div class="traffic-metric-card">
+                    <span class="tm-lbl">Hora de Reporte</span>
+                    <span class="tm-val" id="traffic-alert-time-val">--:--</span>
+                </div>
+                <div class="traffic-metric-card">
+                    <span class="tm-lbl">Estado de Vía</span>
+                    <span class="tm-val text-rose" id="traffic-alert-status-lbl">🔴 Tráfico Pesado</span>
+                </div>
+            </div>
+            <div class="traffic-alert-actions-row">
+                <button type="button" class="btn btn-emerald-alert" onclick="descartarAlertaTrafico()">
+                    ✓ Entendido / Mantener Distancia
+                </button>
+                <button type="button" class="btn btn-voice-alert" onclick="reproducirVozAlertaTrafico()">
+                    🔊 Reanunciar Alerta
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="hud-driver-panel">
+        <div class="hud-header">
+            <div>
+                <span style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Telemetría Móvil</span>
+                <div class="hud-coords" id="coords">Lat: -, Lng: -</div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <button type="button" class="btn-paradero-audio" onclick="reiniciarRecorrido()" title="Reiniciar cronómetro del recorrido a 00h 00m">
+                    🔄 Reiniciar Viaje
+                </button>
+                <div class="hud-speedometer">
+                    <span>⚡</span>
+                    <span id="hud-vel">0 km/h</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="font-size: 12px; font-weight: 700; color: #f8fafc; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+            <div style="display: flex; align-items: center; gap: 6px;">
+                <span>🚏 Paraderos:</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 4px;">
+                <span style="font-size: 10px; color: var(--text-muted); font-weight: 700;">CARRIL:</span>
+                <button type="button" class="btn-carril-hud active" id="hud-btn-subida" onclick="cambiarCarrilUnidad('subida')">⬆️ Subida</button>
+                <button type="button" class="btn-carril-hud" id="hud-btn-bajada" onclick="cambiarCarrilUnidad('bajada')">⬇️ Bajada</button>
+                <button type="button" class="btn-carril-hud" id="hud-btn-todos" onclick="cambiarCarrilUnidad('todos')">🔄 Todos</button>
+            </div>
+        </div>
+        <div id="paraderos-list">
+            <div style="font-size: 12px; color: var(--text-muted); text-align: center; padding: 10px;">Cargando paraderos...</div>
+        </div>
+    </div>
+
+    <!-- Notificación Toast Flotante de Conexión / Red -->
+    <div id="toast-red-unidad" style="display: none; position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); z-index: 999999; background: rgba(15, 23, 42, 0.96); border: 1px solid rgba(56, 189, 248, 0.5); border-radius: 12px; padding: 10px 18px; box-shadow: 0 10px 30px rgba(0,0,0,0.85), 0 0 20px rgba(56,189,248,0.3); color: #f8fafc; font-size: 13px; font-weight: 700; align-items: center; gap: 8px; backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); transition: all 0.3s ease; pointer-events: none;">
+        <span id="toast-red-icon" style="font-size: 16px;">⚡</span>
+        <span id="toast-red-msg">Conectado</span>
+    </div>
+
+    <script>
+        function salir() {
+            if (confirm('¿Desea cerrar la sesión de esta unidad?')) {
+                try {
+                    localStorage.removeItem('codigoUnidad');
+                    localStorage.removeItem('unidadNombre');
+                } catch(e) {}
+
+                if (window.location.protocol === 'file:') {
+                    window.location.replace('index.html');
+                } else {
+                    window.location.replace('/');
+                }
+            }
+        }
+
+        function fetchConTimeout(url, opciones = {}, ms = 2500) {
+            if (typeof AbortController === 'undefined') {
+                return fetch(url, opciones);
+            }
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), ms);
+            return fetch(url, { ...opciones, signal: controller.signal })
+                .finally(() => clearTimeout(timeoutId));
+        }
+
+        let socket = null;
+        try {
+            if (typeof io !== 'undefined') {
+                socket = io({
+                    reconnection: true,
+                    reconnectionAttempts: Infinity,
+                    reconnectionDelay: 300,        // Primer reintento inmediato a 300ms
+                    reconnectionDelayMax: 1500,    // Reintento rápido continuo a 1.5s (sin pausas largas)
+                    randomizationFactor: 0.1,
+                    timeout: 3000,                 // Si un intento tarda más de 3s, abortar y reintentar de inmediato
+                    transports: ['websocket', 'polling'], // Priorizar conexión WebSocket directa
+                    autoConnect: true
+                });
+            }
+        } catch(e) {}
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const paramUnidad = urlParams.get('unidad');
+        const paramNombre = urlParams.get('nombre');
+        const paramCarril = urlParams.get('carril');
+        const paramModo3D = urlParams.get('modo3d');
+
+        if (paramUnidad) {
+            try { localStorage.setItem('codigoUnidad', paramUnidad); } catch(e) {}
+        }
+        if (paramNombre) {
+            try { localStorage.setItem('unidadNombre', paramNombre); } catch(e) {}
+        }
+
+        const codigoUnidad = paramUnidad || localStorage.getItem('codigoUnidad');
+        const unidadNombre = paramNombre || localStorage.getItem('unidadNombre');
+        
+        if (!codigoUnidad) {
+            salir();
+        }
+
+        if (paramCarril) {
+            try { localStorage.setItem('carril_unidad_' + codigoUnidad, paramCarril); } catch(e) {}
+        }
+        if (paramModo3D !== null) {
+            try { localStorage.setItem('modo3d_unidad_' + codigoUnidad, paramModo3D); } catch(e) {}
+        }
+
+        const savedCarril = paramCarril || localStorage.getItem('carril_unidad_' + codigoUnidad) || 'subida';
+        let carrilActualUnidad = savedCarril;
+
+        let modo3DActivo = false; // Por defecto en 3D según solicitud
+        const savedModo3D = paramModo3D !== null ? paramModo3D : localStorage.getItem('modo3d_unidad_' + codigoUnidad);
+        if (savedModo3D === 'false') {
+            modo3DActivo = false;
+        }
+
+        let map = null;
+        let marker = null;
+        let paraderos = [];
+        let config = {};
+        let anunciados = new Set();
+        let capasBase = {};
+        let capasRutaAntaCusco = null;
+        let ultimaVelocidad = 0;
+
+        // ==============================================
+        // GESTIÓN INTELIGENTE DE CONEXIÓN Y MODO OFFLINE
+        // ==============================================
+        let toastRedTimeout = null;
+        function mostrarToastConexion(msg, tipo = 'info') {
+            const toast = document.getElementById('toast-red-unidad');
+            const icon = document.getElementById('toast-red-icon');
+            const txt = document.getElementById('toast-red-msg');
+            if (!toast || !txt) return;
+
+            if (tipo === 'success') {
+                toast.style.borderColor = 'rgba(16, 185, 129, 0.6)';
+                toast.style.boxShadow = '0 10px 30px rgba(0,0,0,0.85), 0 0 20px rgba(16,185,129,0.3)';
+                if (icon) icon.textContent = '⚡';
+            } else if (tipo === 'warning') {
+                toast.style.borderColor = 'rgba(245, 158, 11, 0.6)';
+                toast.style.boxShadow = '0 10px 30px rgba(0,0,0,0.85), 0 0 20px rgba(245,158,11,0.3)';
+                if (icon) icon.textContent = '⚠️';
+            } else {
+                toast.style.borderColor = 'rgba(56, 189, 248, 0.5)';
+                toast.style.boxShadow = '0 10px 30px rgba(0,0,0,0.85), 0 0 20px rgba(56,189,248,0.3)';
+                if (icon) icon.textContent = '🔄';
+            }
+
+            txt.textContent = msg;
+            toast.style.display = 'flex';
+            if (toastRedTimeout) clearTimeout(toastRedTimeout);
+            toastRedTimeout = setTimeout(() => {
+                toast.style.display = 'none';
+            }, 3500);
+        }
+
+        function actualizarPillConexion(estado) {
+            const pill = document.getElementById('net-status-pill');
+            const txt = document.getElementById('net-status-text');
+            if (!pill || !txt) return;
+
+            pill.classList.remove('net-online', 'net-offline', 'net-reconnecting');
+
+            if (estado === 'online' || estado === true) {
+                pill.classList.add('net-online');
+                txt.textContent = '🟢 En Línea';
+                pill.title = 'Conexión activa en tiempo real con la central';
+            } else if (estado === 'reconnecting') {
+                pill.classList.add('net-reconnecting');
+                txt.textContent = '⚡ Reconectando...';
+                pill.title = 'Reconectando automáticamente con la central';
+            } else {
+                pill.classList.add('net-offline');
+                txt.textContent = '🟠 Offline (GPS Activo)';
+                pill.title = 'Modo autónomo: GPS y voz funcionan 100% sin internet. Toca para forzar reconexión';
+            }
+        }
+
+        function forzarReconexionInmediata() {
+            mostrarToastConexion('⚡ Forzando reconexión inmediata con la central...', 'info');
+            actualizarPillConexion('reconnecting');
+            if (socket) {
+                if (socket.connected) {
+                    socket.disconnect();
+                }
+                socket.connect();
+                vaciarColaUbicacionesOffline();
+                socket.emit('unidad:getConfig');
+                socket.emit('unidad:getParaderos');
+            }
+        }
+
+        let ultimaUbicacionGPS = null;
+        try {
+            const savedUbi = localStorage.getItem('ultima_pos_gps_' + codigoUnidad);
+            if (savedUbi) ultimaUbicacionGPS = JSON.parse(savedUbi);
+        } catch(e) {}
+
+        let colaUbicacionesOffline = [];
+
+        function guardarUbicacionMemoria(lat, lng, velocidad) {
+            ultimaUbicacionGPS = {
+                lat: parseFloat(lat),
+                lng: parseFloat(lng),
+                velocidad: velocidad || 0,
+                timestamp: Date.now()
+            };
+            try {
+                localStorage.setItem('ultima_pos_gps_' + codigoUnidad, JSON.stringify(ultimaUbicacionGPS));
+            } catch(e) {}
+        }
+
+        function enviarUbicacionAlServidor(lat, lng, velocidad) {
+            guardarUbicacionMemoria(lat, lng, velocidad);
+
+            const payload = {
+                codigoUnidad: codigoUnidad,
+                lat: lat,
+                lng: lng,
+                velocidad: velocidad || 0,
+                rumbo: (typeof rumboActualChofer !== 'undefined' ? rumboActualChofer : (typeof ultimoRumbo !== 'undefined' ? ultimoRumbo : 0)),
+                carril: (typeof carrilActualUnidad !== 'undefined' ? carrilActualUnidad : 'subida')
+            };
+
+            if (socket && socket.connected) {
+                socket.emit('unidad:updateLocation', payload);
+            } else {
+                colaUbicacionesOffline.push({ ...payload, timestamp: Date.now() });
+                if (colaUbicacionesOffline.length > 10) colaUbicacionesOffline.shift();
+            }
+        }
+
+        function vaciarColaUbicacionesOffline() {
+            if (!socket || !socket.connected) return;
+            if (ultimaUbicacionGPS && ultimaUbicacionGPS.lat) {
+                socket.emit('unidad:updateLocation', {
+                    codigoUnidad: codigoUnidad,
+                    lat: ultimaUbicacionGPS.lat,
+                    lng: ultimaUbicacionGPS.lng,
+                    velocidad: ultimaUbicacionGPS.velocidad || 0
+                });
+            }
+            colaUbicacionesOffline = [];
+        }
+
+        // ==============================================
+        // RUTA FIJA ANTA ➔ CUSCO HUAYRUROPATA (PE-3S)
+        // ==============================================
+        const COORDENADAS_RUTA_ANTA_CUSCO = [
+            [-13.461830, -72.146064], // Terminal Terrestre Anta (Izcuchaca) - GPS Exacto
+            [-13.463200, -72.143200],
+            [-13.464500, -72.140200], // Plaza Izcuchaca
+            [-13.466500, -72.136000],
+            [-13.468200, -72.132500], // Pampa de Anta
+            [-13.471500, -72.122000],
+            [-13.475600, -72.112000], // Compone
+            [-13.479500, -72.102500],
+            [-13.483500, -72.093500],
+            [-13.488000, -72.083500], // Pucyura Centro
+            [-13.492000, -72.071500],
+            [-13.495500, -72.061000],
+            [-13.498500, -72.053000], // Cachimayo Cruce
+            [-13.501200, -72.043000],
+            [-13.504200, -72.031500], // Peaje Cachimayo / Sencca
+            [-13.507200, -72.023500],
+            [-13.509800, -72.016000], // Poroy Entrada
+            [-13.513500, -72.007000], // Curva Poroy
+            [-13.516500, -71.998500], // Tica Tica Bajada
+            [-13.518800, -71.991000], // Arco Tica Tica / Control
+            [-13.520800, -71.986000], // Puquín
+            [-13.522000, -71.982500], // Arcopata
+            [-13.521200, -71.979000], // San Pedro / Calle Hospital
+            [-13.522800, -71.974500], // Av. Grau / Pera
+            [-13.524200, -71.972000], // Av. Ejército
+            [-13.524800, -71.964000], // Av. Huayruropata con Garcilaso
+            [-13.525500, -71.958500]  // Cusco Huayruropata (Terminal Final)
+        ];
+
+        const PARADEROS_INICIALES_ANTA_CUSCO = [
+            // --- CARRIL DE BAJADA (Anta ➔ Cusco) ---
+            { id: 'p_anta_b1', nombre: 'Terminal Terrestre Anta (Izcuchaca)', lat: -13.461830, lng: -72.146064, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b2', nombre: 'Plaza de Armas Izcuchaca (Bajada)', lat: -13.464500, lng: -72.140200, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b3', nombre: 'Pampa de Anta (Bajada)', lat: -13.468200, lng: -72.132500, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b4', nombre: 'Desvío Compone (Bajada)', lat: -13.475600, lng: -72.112000, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b5', nombre: 'Pucyura Centro (Bajada)', lat: -13.488000, lng: -72.083500, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b6', nombre: 'Cruce Cachimayo (Bajada)', lat: -13.498500, lng: -72.053000, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b7', nombre: 'Peaje Cachimayo / Sencca', lat: -13.504200, lng: -72.031500, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b8', nombre: 'Poroy Entrada (Bajada)', lat: -13.509800, lng: -72.016000, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b9', nombre: 'Tica Tica / Control (Bajada)', lat: -13.518800, lng: -71.991000, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b10', nombre: 'Arcopata (Bajada)', lat: -13.522000, lng: -71.982500, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b11', nombre: 'Av. Ejército (Bajada)', lat: -13.524200, lng: -71.972000, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_b12', nombre: 'Cusco - Huayruropata (Terminal Final)', lat: -13.525500, lng: -71.958500, sentido: 'bajada', voiceType: 'speech', voiceName: '', audioUrl: '' },
+
+            // --- CARRIL DE SUBIDA (Cusco ➔ Anta) ---
+            { id: 'p_anta_s1', nombre: 'Cusco - Huayruropata (Inicio Subida)', lat: -13.525500, lng: -71.958500, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s2', nombre: 'Av. Huayruropata / Garcilaso', lat: -13.524800, lng: -71.964000, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s3', nombre: 'Av. Ejército / Pera (Subida)', lat: -13.523900, lng: -71.971800, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s4', nombre: 'Arcopata (Subida)', lat: -13.521800, lng: -71.982800, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s5', nombre: 'Tica Tica / Curva (Subida)', lat: -13.518500, lng: -71.991500, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s6', nombre: 'Poroy (Subida)', lat: -13.509500, lng: -72.016500, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s7', nombre: 'Cachimayo Cruce (Subida)', lat: -13.498200, lng: -72.053200, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s8', nombre: 'Pucyura (Subida)', lat: -13.487800, lng: -72.083800, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s9', nombre: 'Compone Entrada (Subida)', lat: -13.475400, lng: -72.112300, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s10', nombre: 'Pampa de Anta (Subida)', lat: -13.468000, lng: -72.132800, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s11', nombre: 'Izcuchaca Centro (Subida)', lat: -13.464200, lng: -72.140500, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' },
+            { id: 'p_anta_s12', nombre: 'Terminal Terrestre Anta (Final Subida)', lat: -13.461830, lng: -72.146064, sentido: 'subida', voiceType: 'speech', voiceName: '', audioUrl: '' }
+        ];
+
+        // Función depuradora para limpiar "Vía Principal", "Via Principal" y "Plaza Principal"
+        function limpiarNombreViaPrincipal(nombre) {
+            if (!nombre) return '';
+            let n = String(nombre).trim();
+            // Reemplazar prefijos como "Vía Principal - ", "Via Principal - ", "🛣️ Vía Principal - "
+            n = n.replace(/^([🛣️📍\s]*v[ií]a\s+principal\s*[-–—:]\s*)/i, '');
+            // Reemplazar sufijos como " - Vía Principal"
+            n = n.replace(/(\s*[-–—:]\s*v[ií]a\s+principal\s*)$/i, '');
+            // Reemplazar "(Vía Principal)"
+            n = n.replace(/\s*\(v[ií]a\s+principal\)/gi, '');
+            // Reemplazar "Plaza Principal" por "Plaza de Armas"
+            n = n.replace(/\bPlaza\s+Principal\b/gi, 'Plaza de Armas');
+            // Si empieza por "Vía Principal " sin guion
+            n = n.replace(/^[🛣️📍\s]*v[ií]a\s+principal\s+/i, '');
+            n = n.trim();
+            if (!n || n.toLowerCase() === 'vía principal' || n.toLowerCase() === 'via principal') {
+                return 'Paradero Autopista';
+            }
+            return n;
+        }
+
+        function obtenerParaderosPersistidosChofer() {
+            try {
+                const guardados = localStorage.getItem('paraderos_anta_cusco');
+                if (guardados) {
+                    const parsed = JSON.parse(guardados);
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        let huboCambios = false;
+                        const saneados = parsed.map(p => {
+                            const limpio = limpiarNombreViaPrincipal(p.nombre);
+                            if (limpio !== p.nombre) {
+                                huboCambios = true;
+                                return { ...p, nombre: limpio };
+                            }
+                            return p;
+                        });
+                        if (huboCambios) {
+                            try { localStorage.setItem('paraderos_anta_cusco', JSON.stringify(saneados)); } catch(e){}
+                        }
+                        return saneados;
+                    }
+                }
+            } catch (e) {}
+            return [...PARADEROS_INICIALES_ANTA_CUSCO];
+        }
+
+        function dibujarRutaFijaAntaCuscoChofer() {
+            if (!map) return;
+            if (capasRutaAntaCusco) {
+                map.removeLayer(capasRutaAntaCusco);
+                capasRutaAntaCusco = null;
+            }
+
+            const grupo = L.layerGroup();
+
+            // Glow exterior
+            const polyGlow = L.polyline(COORDENADAS_RUTA_ANTA_CUSCO, {
+                color: '#0284c7',
+                weight: 8,
+                opacity: 0.4,
+                lineCap: 'round',
+                lineJoin: 'round'
+            });
+            grupo.addLayer(polyGlow);
+
+            // Línea principal
+            const polyMain = L.polyline(COORDENADAS_RUTA_ANTA_CUSCO, {
+                color: '#38bdf8',
+                weight: 4,
+                opacity: 0.95,
+                lineCap: 'round',
+                lineJoin: 'round'
+            });
+            grupo.addLayer(polyMain);
+
+            // Terminal Anta
+            const iconoAnta = L.divIcon({
+                className: 'terminal-badge-anta',
+                html: `
+                    <div style="background: linear-gradient(135deg, #0284c7, #0369a1); border: 2px solid #ffffff; color: #ffffff; padding: 3px 8px; border-radius: 16px; font-weight: 800; font-size: 11px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px;">
+                        <span>🚩</span>
+                        <span>ANTA: Izcuchaca</span>
+                    </div>
+                `,
+                iconSize: [140, 26],
+                iconAnchor: [70, 13]
+            });
+            grupo.addLayer(L.marker([-13.461830, -72.146064], { icon: iconoAnta }));
+
+            // Terminal Cusco Huayruropata
+            const iconoCusco = L.divIcon({
+                className: 'terminal-badge-cusco',
+                html: `
+                    <div style="background: linear-gradient(135deg, #7c3aed, #6d28d9); border: 2px solid #ffffff; color: #ffffff; padding: 3px 8px; border-radius: 16px; font-weight: 800; font-size: 11px; white-space: nowrap; box-shadow: 0 4px 14px rgba(0,0,0,0.6); display: flex; align-items: center; gap: 4px;">
+                        <span>🏁</span>
+                        <span>CUSCO: Huayruropata</span>
+                    </div>
+                `,
+                iconSize: [150, 26],
+                iconAnchor: [75, 13]
+            });
+            grupo.addLayer(L.marker([-13.525500, -71.958500], { icon: iconoCusco }));
+
+            grupo.addTo(map);
+            capasRutaAntaCusco = grupo;
+        }
+
+        function centrarRutaAntaCuscoChofer() {
+            if (!map) return;
+            const bounds = L.latLngBounds(COORDENADAS_RUTA_ANTA_CUSCO);
+            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 14 });
+        }
+        
+        function initMap() {
+            if (map) return;
+            map = L.map('map', {
+                center: [-13.4936, -72.0522],
+                zoom: 12,
+                zoomControl: true
+            });
+
+            capasBase = {
+                hybrid: L.tileLayer('https://mt{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['0', '1', '2', '3'],
+                    attribution: '&copy; Google Earth'
+                }),
+                traffic: L.tileLayer('https://mt{s}.google.com/vt/lyrs=m,traffic&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['0', '1', '2', '3'],
+                    attribution: '&copy; Google Tráfico'
+                }),
+                streets: L.tileLayer('https://mt{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+                    maxZoom: 20,
+                    subdomains: ['0', '1', '2', '3'],
+                    attribution: '&copy; Google Maps'
+                }),
+                osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                    attribution: '&copy; OpenStreetMap'
+                })
+            };
+
+            capasBase.hybrid.addTo(map);
+
+            L.control.layers({
+                "🛰️ Google Earth": capasBase.hybrid,
+                "🚦 Tráfico en Vivo": capasBase.traffic,
+                "🗺️ Calles": capasBase.streets,
+                "🌐 OpenStreetMap": capasBase.osm
+            }, null, { position: 'topright' }).addTo(map);
+
+            dibujarRutaFijaAntaCuscoChofer();
+            cargarMarcadoresMapaUnidad();
+
+            setTimeout(() => { if (map) map.invalidateSize(); }, 200);
+        }
+
+        // Cargar inmediatamente desde persistencia local para tener los paraderos creados al abrir
+        paraderos = obtenerParaderosPersistidosChofer();
+        actualizarListaParaderos();
+
+        if (socket) {
+            socket.on('connect', () => {
+                console.log('⚡ Socket Chofer conectado/reconectado instantáneamente.');
+                actualizarPillConexion('online');
+                socket.emit('unidad:getConfig');
+                socket.emit('unidad:getParaderos');
+                vaciarColaUbicacionesOffline();
+            });
+
+            socket.on('disconnect', (reason) => {
+                console.warn('🔴 Socket Chofer desconectado:', reason);
+                actualizarPillConexion('offline');
+                if (reason === 'io server disconnect' || reason === 'transport close' || reason === 'transport error') {
+                    setTimeout(() => {
+                        if (socket && !socket.connected) socket.connect();
+                    }, 300);
+                }
+            });
+
+            socket.on('connect_error', (error) => {
+                console.warn('⚠️ Intento de reconexión Socket Chofer:', error.message);
+                actualizarPillConexion('reconnecting');
+            });
+
+            socket.on('unidad:paraderos', (data) => {
+                if (data && data.length > 0) {
+                    data.forEach(sp => {
+                        const spLimpio = { ...sp, nombre: limpiarNombreViaPrincipal(sp.nombre) };
+                        const existe = paraderos.some(lp => lp.id === spLimpio.id || (lp.nombre === spLimpio.nombre && Math.abs(parseFloat(lp.lat) - parseFloat(spLimpio.lat)) < 0.0001));
+                        if (!existe) {
+                            paraderos.push(spLimpio);
+                        }
+                    });
+                    try {
+                        localStorage.setItem('paraderos_anta_cusco', JSON.stringify(paraderos));
+                    } catch(e) {}
+                }
+                actualizarListaParaderos();
+                cargarMarcadoresMapaUnidad();
+            });
+            
+            socket.on('unidad:config', (data) => {
+                config = data || {};
+                if (data && data.mensajesSeguridad && Array.isArray(data.mensajesSeguridad) && data.mensajesSeguridad.length >= 3) {
+                    MENSAJES_SEGURIDAD_CUSCO_ANTA = data.mensajesSeguridad;
+                    window.MENSAJES_SEGURIDAD_CUSCO_ANTA = data.mensajesSeguridad;
+                }
+            });
+
+            socket.on('admin:configUpdated', (data) => {
+                if (data) {
+                    config = { ...config, ...data };
+                    if (data.mensajesSeguridad && Array.isArray(data.mensajesSeguridad) && data.mensajesSeguridad.length >= 3) {
+                        MENSAJES_SEGURIDAD_CUSCO_ANTA = data.mensajesSeguridad;
+                        window.MENSAJES_SEGURIDAD_CUSCO_ANTA = data.mensajesSeguridad;
+                    }
+                }
+            });
+
+            // Disparar solicitudes iniciales si el socket ya estuviera listo
+            socket.emit('unidad:getParaderos');
+            socket.emit('unidad:getConfig');
+        }
+
+        // Detección automática nativa del navegador cuando se corta o regresa el internet
+        window.addEventListener('online', () => {
+            console.log('⚡ Conexión a Internet detectada por el navegador.');
+            actualizarPillConexion('reconnecting');
+            mostrarToastConexion('⚡ ¡Internet restablecido! Sincronizando con central...', 'success');
+            if (socket) {
+                if (!socket.connected) socket.connect();
+                vaciarColaUbicacionesOffline();
+                socket.emit('unidad:getConfig');
+                socket.emit('unidad:getParaderos');
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            console.warn('⚠️ Conexión a Internet perdida.');
+            actualizarPillConexion('offline');
+            mostrarToastConexion('⚠️ Sin Internet. Modo Offline activo: GPS y Anuncios de voz al 100%.', 'warning');
+        });
+
+        // Carga de respaldo vía HTTP REST con timeout estricto de 2.5s (no se cuelga si no hay red)
+        fetchConTimeout('/api/paraderos', {}, 2500)
+            .then(r => r.json())
+            .then(data => {
+                if (Array.isArray(data) && data.length > 0) {
+                    data.forEach(sp => {
+                        const spLimpio = { ...sp, nombre: limpiarNombreViaPrincipal(sp.nombre) };
+                        const existe = paraderos.some(lp => lp.id === spLimpio.id || (lp.nombre === spLimpio.nombre && Math.abs(parseFloat(lp.lat) - parseFloat(spLimpio.lat)) < 0.0001));
+                        if (!existe) {
+                            paraderos.push(spLimpio);
+                        }
+                    });
+                    try {
+                        localStorage.setItem('paraderos_anta_cusco', JSON.stringify(paraderos));
+                    } catch(e) {}
+                    actualizarListaParaderos();
+                    cargarMarcadoresMapaUnidad();
+                }
+            })
+            .catch(() => {});
+
+        // Cargar configuración de voz desde localStorage si existe
+        try {
+            const savedVoz = localStorage.getItem('config_voz_anta_cusco');
+            if (savedVoz) config = { ...config, ...JSON.parse(savedVoz) };
+        } catch(e) {}
+
+        fetchConTimeout('/api/config', {}, 2500)
+            .then(r => r.json())
+            .then(data => {
+                if (data) {
+                    config = { ...config, ...data };
+                    if (data.mensajesSeguridad && Array.isArray(data.mensajesSeguridad) && data.mensajesSeguridad.length >= 3) {
+                        MENSAJES_SEGURIDAD_CUSCO_ANTA = data.mensajesSeguridad;
+                        window.MENSAJES_SEGURIDAD_CUSCO_ANTA = data.mensajesSeguridad;
+                    }
+                }
+            })
+            .catch(() => {});
+
+        // Sincronización automática si el Administrador modifica paraderos o voz
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'paraderos_anta_cusco' && e.newValue) {
+                try {
+                    paraderos = JSON.parse(e.newValue);
+                    actualizarListaParaderos();
+                    if (map) cargarMarcadoresMapaUnidad();
+                } catch(err) {}
+            }
+            if (e.key === 'config_voz_anta_cusco' && e.newValue) {
+                try {
+                    config = { ...config, ...JSON.parse(e.newValue) };
+                } catch(err) {}
+            }
+            if (e.key === 'mensajes_seguridad_cusco_anta' && e.newValue) {
+                try {
+                    cargarMensajesSeguridadChofer();
+                } catch(err) {}
+            }
+        });
+
+        // Distancia Haversine (metros)
+        function haversineDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371000;
+            const toRad = (x) => (x * Math.PI) / 180;
+            const dLat = toRad(lat2 - lat1);
+            const dLon = toRad(lon2 - lon1);
+            const a = 
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * 
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        }
+
+        // Cálculo de rumbo azimutal entre dos puntos GPS (grados 0 - 360)
+        function calcularRumboGPS(lat1, lon1, lat2, lon2) {
+            const toRad = (x) => (x * Math.PI) / 180;
+            const toDeg = (x) => (x * 180) / Math.PI;
+            const y = Math.sin(toRad(lon2 - lon1)) * Math.cos(toRad(lat2));
+            const x = Math.cos(toRad(lat1)) * Math.sin(toRad(lat2)) -
+                      Math.sin(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.cos(toRad(lon2 - lon1));
+            return (toDeg(Math.atan2(y, x)) + 360) % 360;
+        }
+
+        let votosCarrilRumbo = { bajada: 0, subida: 0 };
+        let rumboActualChofer = 0;
+
+        function actualizarSentidoSegunRumbo(rumbo) {
+            if (rumbo === null || isNaN(rumbo)) return;
+            rumboActualChofer = Math.round(rumbo);
+
+            // Anta a Cusco (Este/Sureste): rumbo aprox entre 40° y 170°
+            // Cusco a Anta (Oeste/Noroeste): rumbo aprox entre 220° y 350°
+            let sentidoEstimado = null;
+            if (rumbo >= 40 && rumbo <= 170) {
+                sentidoEstimado = 'bajada';
+            } else if (rumbo >= 220 && rumbo <= 350) {
+                sentidoEstimado = 'subida';
+            }
+
+            if (sentidoEstimado) {
+                votosCarrilRumbo[sentidoEstimado] = (votosCarrilRumbo[sentidoEstimado] || 0) + 1;
+                const otro = sentidoEstimado === 'bajada' ? 'subida' : 'bajada';
+                votosCarrilRumbo[otro] = Math.max(0, (votosCarrilRumbo[otro] || 0) - 1);
+
+                if (votosCarrilRumbo[sentidoEstimado] >= 3 && carrilActualUnidad !== sentidoEstimado && carrilActualUnidad !== 'todos') {
+                    votosCarrilRumbo = { bajada: 0, subida: 0 };
+                    console.log(`🔄 Cambio automático de sentido por rumbo GPS (${Math.round(rumbo)}°): ${sentidoEstimado}`);
+                    cambiarCarrilUnidad(sentidoEstimado);
+                    mostrarToastConexion(`🔄 Sentido detectado por GPS: ${sentidoEstimado === 'bajada' ? 'Bajada ⬇️ (Anta ➔ Cusco)' : 'Subida ⬆️ (Cusco ➔ Anta)'}`, 'info');
+                }
+            }
+        }
+
+        function cambiarCarrilUnidad(carril) {
+            carrilActualUnidad = carril;
+            ['subida', 'bajada', 'todos'].forEach(c => {
+                const b = document.getElementById('hud-btn-' + c);
+                if (b) b.classList.toggle('active', c === carril);
+            });
+
+            // Sincronizar visualizador 3D de cabina
+            const stripBajada = document.getElementById('strip-bajada');
+            const stripSubida = document.getElementById('strip-subida');
+            const busMarker = document.getElementById('cockpit-bus-marker');
+            const carrilTxt = document.getElementById('cockpit-carril-text');
+            const carrilIco = document.getElementById('cockpit-carril-icon');
+
+            if (carril === 'bajada') {
+                if (stripBajada) stripBajada.classList.add('is-active-lane');
+                if (stripSubida) stripSubida.classList.remove('is-active-lane');
+                if (busMarker) busMarker.style.left = '25%';
+                if (carrilTxt) {
+                    carrilTxt.textContent = 'CARRIL BAJADA (ANTA ➔ CUSCO)';
+                    carrilTxt.style.color = '#fbbf24';
+                }
+                if (carrilIco) carrilIco.textContent = '⬇️';
+            } else {
+                if (stripSubida) stripSubida.classList.add('is-active-lane');
+                if (stripBajada) stripBajada.classList.remove('is-active-lane');
+                if (busMarker) busMarker.style.left = '75%';
+                if (carrilTxt) {
+                    carrilTxt.textContent = 'CARRIL SUBIDA (CUSCO ➔ ANTA)';
+                    carrilTxt.style.color = '#38bdf8';
+                }
+                if (carrilIco) carrilIco.textContent = '⬆️';
+            }
+
+            try {
+                localStorage.setItem('carril_unidad_' + codigoUnidad, carril);
+            } catch(e) {}
+
+            actualizarListaParaderos();
+        }
+
+        function actualizarListaParaderos() {
+            const listDiv = document.getElementById('paraderos-list');
+            if (!listDiv) return;
+            listDiv.innerHTML = '';
+
+            let lista = paraderos;
+            if (carrilActualUnidad !== 'todos') {
+                lista = paraderos.filter(p => (p.sentido || 'subida') === carrilActualUnidad || p.sentido === 'ambos');
+            }
+
+            if (lista.length === 0) {
+                listDiv.innerHTML = `<div style="font-size: 11px; color: var(--text-muted); text-align: center; padding: 12px;">No hay paraderos en el carril ${carrilActualUnidad === 'subida' ? 'de Subida ⬆️' : 'de Bajada ⬇️'}.</div>`;
+                return;
+            }
+
+            lista.forEach(p => {
+                const sentido = p.sentido || 'subida';
+                const isSubida = sentido === 'subida';
+                const isBajada = sentido === 'bajada';
+                const div = document.createElement('div');
+                div.className = 'paradero-row';
+                div.innerHTML = `
+                    <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+                        <span style="font-size: 12px;">${isSubida ? '⬆️' : (isBajada ? '⬇️' : '🔄')}</span>
+                        <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; font-weight: 600;">${p.nombre}</span>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                        <button type="button" class="btn-paradero-audio" onclick="probarAudioParaderoChofer('${p.id}')" title="Probar audio de este paradero">🔊 Probar</button>
+                        <span class="paradero-dist-badge" id="dist-${p.id}">-</span>
+                    </div>
+                `;
+                listDiv.appendChild(div);
+            });
+
+            cargarMarcadoresMapaUnidad();
+        }
+
+        let marcadoresParaderosUnidad = {};
+
+        function cargarMarcadoresMapaUnidad() {
+            if (!map) return;
+            Object.values(marcadoresParaderosUnidad).forEach(m => map.removeLayer(m));
+            marcadoresParaderosUnidad = {};
+
+            let lista = paraderos;
+            if (carrilActualUnidad !== 'todos') {
+                lista = paraderos.filter(p => (p.sentido || 'subida') === carrilActualUnidad || p.sentido === 'ambos');
+            }
+
+            lista.forEach(p => {
+                const lat = parseFloat(p.lat);
+                const lng = parseFloat(p.lng);
+                if (isNaN(lat) || isNaN(lng)) return;
+
+                const isSubida = (p.sentido || 'subida') === 'subida';
+                const isBajada = p.sentido === 'bajada';
+                const bg = isSubida ? '#10b981' : (isBajada ? '#f59e0b' : '#06b6d4');
+                const arrow = isSubida ? '⬆️' : (isBajada ? '⬇️' : '🔄');
+
+                const icon = L.divIcon({
+                    className: 'stop-pin-unidad',
+                    html: `<div style="width:28px;height:28px;background:${bg};border:2px solid white;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;box-shadow:0 0 10px ${bg};">${arrow}</div>`,
+                    iconSize: [28, 28],
+                    iconAnchor: [14, 14]
+                });
+
+                const m = L.marker([lat, lng], { icon }).addTo(map);
+                m.bindPopup(`<strong style="font-size:12px;color:white;">🚏 ${p.nombre}</strong><br><span style="font-size:11px;color:#94a3b8;">${isSubida ? '⬆️ Carril Subida' : (isBajada ? '⬇️ Carril Bajada' : '🔄 Ambos')}</span>`);
+                marcadoresParaderosUnidad[p.id || (p.nombre + '_' + lat)] = m;
+            });
+        }
+
+        // ==============================================
+        // GESTIÓN DE AUDIO Y LOCUCIÓN VOCAL
+        // ==============================================
+        let audioDesbloqueado = false;
+        let wakeLock = null;
+        window._activeUtteranceParadero = null;
+        window._activeUtteranceSeguridad = null;
+
+        // Mantener la pantalla encendida en el celular mientras esté en ruta
+        async function activarWakeLock() {
+            if ('wakeLock' in navigator) {
+                try {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    console.log('📱 Screen WakeLock activo: Pantalla encendida para GPS continuo.');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('📱 Screen WakeLock liberado.');
+                    });
+                } catch(err) {
+                    console.warn('WakeLock error:', err.message);
+                }
+            }
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                activarWakeLock();
+            }
+        });
+
+        // Desbloquear audio del celular con el primer toque
+        function desbloquearAudioTotal() {
+            if (audioDesbloqueado) return;
+            audioDesbloqueado = true;
+
+            // Desbloquear AudioContext
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (AudioCtx) {
+                    if (!window._audioCtx) window._audioCtx = new AudioCtx();
+                    if (window._audioCtx.state === 'suspended') window._audioCtx.resume();
+                }
+            } catch(e) {}
+
+            // Desbloquear SpeechSynthesis y despertar motor de voz
+            if ('speechSynthesis' in window) {
+                try {
+                    window.speechSynthesis.cancel();
+                    window.speechSynthesis.resume();
+                    const u = new SpeechSynthesisUtterance('Voz y GPS de paraderos activado.');
+                    u.lang = 'es-ES';
+                    u.volume = 1;
+                    window.speechSynthesis.speak(u);
+                } catch(e) {}
+            }
+
+            // Activar WakeLock para evitar que la pantalla se apague
+            activarWakeLock();
+
+            // Ocultar banner móvil y actualizar botones
+            const banner = document.getElementById('banner-audio-movil');
+            if (banner) banner.style.display = 'none';
+
+            const btn = document.getElementById('btn-audio-status');
+            const txt = document.getElementById('audio-status-text');
+            if (btn) btn.classList.add('audio-active');
+            if (txt) txt.textContent = '🔊 Audio Listo ✅';
+
+            mostrarToastConexion('✅ ¡Audio y GPS Activados! Cantará los paraderos automáticamente.', 'success');
+        }
+
+        // Detectar cualquier toque en la pantalla del celular para desbloquear el audio automáticamente
+        document.addEventListener('touchstart', desbloquearAudioTotal, { once: true, passive: true });
+        document.addEventListener('click', desbloquearAudioTotal, { once: true, passive: true });
+
+        function activarYProbarAudioUnidad() {
+            desbloquearAudioTotal();
+            const btn = document.getElementById('btn-audio-status');
+            const txt = document.getElementById('audio-status-text');
+
+            if (btn) btn.classList.add('audio-active');
+            if (txt) txt.textContent = '🔊 Audio Listo ✅';
+
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance('Audio activado. Sistema de anuncios vocal listo.');
+                utterance.lang = 'es-ES';
+
+                const voices = window.speechSynthesis.getVoices();
+                if (voices && voices.length > 0) {
+                    const targetName = config.defaultVoiceName;
+                    let v = null;
+                    if (targetName) {
+                        v = voices.find(vo => vo.name === targetName || vo.name.includes(targetName));
+                    }
+                    if (!v) {
+                        v = voices.find(vo => vo.lang && vo.lang.toLowerCase().startsWith('es'));
+                    }
+                    if (v) utterance.voice = v;
+                }
+
+                if (config.defaultRate) utterance.rate = parseFloat(config.defaultRate);
+                if (config.defaultPitch) utterance.pitch = parseFloat(config.defaultPitch);
+                if (config.defaultVolume) utterance.volume = parseFloat(config.defaultVolume);
+
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        // Timbre / Campanilla elegante de llegada (Ding-Dong) antes de cantar el paradero
+        function reproducirTimbreLlegada() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                if (!window._audioCtx) window._audioCtx = new AudioCtx();
+                if (window._audioCtx.state === 'suspended') window._audioCtx.resume();
+
+                const ctx = window._audioCtx;
+                const now = ctx.currentTime;
+
+                // Tono 1: G5 (784 Hz)
+                const osc1 = ctx.createOscillator();
+                const gain1 = ctx.createGain();
+                osc1.type = 'sine';
+                osc1.frequency.setValueAtTime(784, now);
+                gain1.gain.setValueAtTime(0.22, now);
+                gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+                osc1.connect(gain1);
+                gain1.connect(ctx.destination);
+                osc1.start(now);
+                osc1.stop(now + 0.3);
+
+                // Tono 2: C6 (1046 Hz)
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.type = 'sine';
+                osc2.frequency.setValueAtTime(1046.5, now + 0.16);
+                gain2.gain.setValueAtTime(0.25, now + 0.16);
+                gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start(now + 0.16);
+                osc2.stop(now + 0.55);
+            } catch(e) {}
+        }
+
+        // Mensajes de seguridad y cortesía institucional Corredor Cusco Anta
+        const MENSAJES_SEGURIDAD_PREDETERMINADOS = [
+            "Estimados pasajeros, bienvenidos a bordo. Por motivos de seguridad, les pedimos mantener sus objetos de valor siempre a la vista y guardar bien sus pertenencias personales durante el trayecto. Corredor Cusco Anta les da las gracias por su preferencia. Que tengan un excelente viaje.",
+            "Señores pasajeros, su seguridad y tranquilidad son nuestra prioridad. Por favor, aseguren su equipaje de mano y no pierdan de vista sus objetos de valor durante todo el recorrido. La familia de Corredor Cusco Anta les agradece su preferencia y les desea un trayecto placentero.",
+            "Atención, por favor. A todos nuestros estimados pasajeros, les recordamos que para disfrutar de un viaje tranquilo, es importante cuidar y asegurar muy bien todas sus pertenencias. La empresa Corredor Cusco Anta agradece profundamente su confianza y preferencia. Relájense y disfruten del recorrido con nosotros."
+        ];
+
+        let MENSAJES_SEGURIDAD_CUSCO_ANTA = [...MENSAJES_SEGURIDAD_PREDETERMINADOS];
+        window.MENSAJES_SEGURIDAD_CUSCO_ANTA = MENSAJES_SEGURIDAD_CUSCO_ANTA;
+
+        function cargarMensajesSeguridadChofer() {
+            try {
+                const guardados = localStorage.getItem('mensajes_seguridad_cusco_anta');
+                if (guardados) {
+                    const parsed = JSON.parse(guardados);
+                    if (Array.isArray(parsed) && parsed.length >= 3 && parsed[0]) {
+                        MENSAJES_SEGURIDAD_CUSCO_ANTA = parsed;
+                        window.MENSAJES_SEGURIDAD_CUSCO_ANTA = parsed;
+                    }
+                }
+            } catch(e) {}
+        }
+        cargarMensajesSeguridadChofer();
+
+        function reproducirMensajeSeguridadChofer(voiceName) {
+            if (!('speechSynthesis' in window)) return;
+            if (config.defaultVoiceEnabled === false) return;
+
+            // Despertar motor de voz si el móvil lo durmió
+            try { window.speechSynthesis.resume(); } catch(e){}
+
+            // Elegir aleatoriamente 1 de los 3 textos
+            const idx = Math.floor(Math.random() * MENSAJES_SEGURIDAD_CUSCO_ANTA.length);
+            const texto = MENSAJES_SEGURIDAD_CUSCO_ANTA[idx];
+
+            const txt = document.getElementById('audio-status-text');
+            if (txt) txt.textContent = `🛡️ Seguridad (${idx + 1}/3)...`;
+
+            const utterance = new SpeechSynthesisUtterance(texto);
+            utterance.lang = 'es-ES';
+            window._activeUtteranceSeguridad = utterance; // Evitar que el garbage collector de Chrome lo cancele
+
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+                const targetVoice = voiceName || config.defaultVoiceName;
+                let v = null;
+                if (targetVoice) {
+                    v = voices.find(vo => vo.name === targetVoice || vo.name.includes(targetVoice));
+                }
+                if (!v) {
+                    v = voices.find(vo => vo.lang && vo.lang.toLowerCase().startsWith('es'));
+                }
+                if (v) utterance.voice = v;
+            }
+
+            if (config.defaultRate) utterance.rate = parseFloat(config.defaultRate);
+            if (config.defaultPitch) utterance.pitch = parseFloat(config.defaultPitch);
+            if (config.defaultVolume) utterance.volume = parseFloat(config.defaultVolume);
+
+            utterance.onend = () => {
+                window._activeUtteranceSeguridad = null;
+                const t = document.getElementById('audio-status-text');
+                if (t) t.textContent = '🔊 Audio Listo ✅';
+                const b = document.getElementById('btn-audio-status');
+                if (b) b.classList.remove('audio-active');
+                console.log('Mensaje de seguridad Cusco-Anta finalizado:', idx + 1);
+            };
+            utterance.onerror = () => {
+                window._activeUtteranceSeguridad = null;
+                const t = document.getElementById('audio-status-text');
+                if (t) t.textContent = '🔊 Audio Listo ✅';
+                const b = document.getElementById('btn-audio-status');
+                if (b) b.classList.remove('audio-active');
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        function probarAudioParaderoChofer(id) {
+            const p = paraderos.find(x => x.id === id);
+            if (!p) return;
+            reproducirAudioParadero(p);
+            registrarPasoParaderoEnHistorial(p);
+        }
+
+        function reproducirAudioParadero(p) {
+            // Despertar contexto de audio
+            if (!audioDesbloqueado) {
+                desbloquearAudioTotal();
+            }
+
+            // Indicar visualmente que el audio está activo
+            const btn = document.getElementById('btn-audio-status');
+            const txt = document.getElementById('audio-status-text');
+            if (btn) btn.classList.add('audio-active');
+            if (txt) txt.textContent = '🔊 Anunciando Paradero...';
+
+            if (p.voiceType === 'custom' && p.audioUrl) {
+                try {
+                    const sound = new Audio(p.audioUrl);
+                    sound.onended = () => {
+                        setTimeout(() => {
+                            reproducirMensajeSeguridadChofer(p.voiceName);
+                        }, 1000);
+                    };
+                    sound.play().catch(e => {
+                        console.warn('Fallo en reproducción MP3, usando voz sintética de respaldo:', e);
+                        hablarTextoParadero(p);
+                    });
+                } catch(e) {
+                    hablarTextoParadero(p);
+                }
+            } else {
+                hablarTextoParadero(p);
+            }
+        }
+
+        function hablarTextoParadero(p) {
+            if (!('speechSynthesis' in window)) return;
+            if (config.defaultVoiceEnabled === false) return;
+
+            // Tocar campanilla agradable de llegada (Ding-Dong)
+            reproducirTimbreLlegada();
+
+            try {
+                window.speechSynthesis.cancel();
+                window.speechSynthesis.resume();
+            } catch(e) {}
+
+            const utterance = new SpeechSynthesisUtterance('Próximo paradero: ' + p.nombre);
+            utterance.lang = 'es-ES';
+            window._activeUtteranceParadero = utterance; // Evitar que el garbage collector de Chrome lo cancele
+
+            const voices = window.speechSynthesis.getVoices();
+            if (voices && voices.length > 0) {
+                const targetVoice = p.voiceName || config.defaultVoiceName;
+                let v = null;
+                if (targetVoice) {
+                    v = voices.find(vo => vo.name === targetVoice || vo.name.includes(targetVoice));
+                }
+                if (!v) {
+                    v = voices.find(vo => vo.lang && vo.lang.toLowerCase().startsWith('es'));
+                }
+                if (v) utterance.voice = v;
+            }
+
+            if (config.defaultRate) utterance.rate = parseFloat(config.defaultRate);
+            if (config.defaultPitch) utterance.pitch = parseFloat(config.defaultPitch);
+            if (config.defaultVolume) utterance.volume = parseFloat(config.defaultVolume);
+
+            // Al terminar el anuncio vocal del paradero, esperar breve pausa y leer uno de los 3 textos de seguridad
+            utterance.onend = () => {
+                window._activeUtteranceParadero = null;
+                setTimeout(() => {
+                    reproducirMensajeSeguridadChofer(p.voiceName);
+                }, 600);
+            };
+            utterance.onerror = (e) => {
+                window._activeUtteranceParadero = null;
+                console.warn('Error en SpeechSynthesis paradero:', e);
+                const t = document.getElementById('audio-status-text');
+                if (t) t.textContent = '🔊 Audio Listo ✅';
+            };
+
+            window.speechSynthesis.speak(utterance);
+        }
+
+        
+        // ==============================================
+        // HISTORIAL DE RUTA Y TARJETA DE CONTROL (CHOFER)
+        // ==============================================
+        let historialParaderosChofer = [];
+        try {
+            const hGuardado = localStorage.getItem('historial_paraderos_' + codigoUnidad);
+            if (hGuardado) historialParaderosChofer = JSON.parse(hGuardado);
+        } catch(e) {}
+
+        function registrarPasoParaderoEnHistorial(p) {
+            const now = new Date();
+            const horaStr = now.toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            const tiempoMin = Math.floor((now.getTime() - (tiempoInicioRecorrido || now.getTime())) / 60000);
+            const vel = Math.round(ultimaVelocidad || 0);
+
+            const item = {
+                paraderoId: p.id,
+                paraderoNombre: p.nombre,
+                hora: horaStr,
+                timestamp: now.toISOString(),
+                tiempoRelativoMin: tiempoMin,
+                velocidad: vel,
+                carril: carrilActualUnidad
+            };
+
+            // Evitar duplicados del mismo paradero en esta vuelta
+            if (!historialParaderosChofer.some(h => h.paraderoId === p.id || h.paraderoNombre === p.nombre)) {
+                historialParaderosChofer.push(item);
+                try {
+                    localStorage.setItem('historial_paraderos_' + codigoUnidad, JSON.stringify(historialParaderosChofer));
+                } catch(e) {}
+                actualizarTarjetaControlUI();
+            }
+
+            // Enviar al servidor para registrar en la base de datos y que el Administrador lo vea en tiempo real
+            if (socket && socket.connected) {
+                socket.emit('unidad:registroParadero', {
+                    codigoUnidad: codigoUnidad,
+                    paradero: p,
+                    velocidad: vel,
+                    tiempoViajeMin: tiempoMin
+                });
+            }
+        }
+
+        function toggleTarjetaControlChofer() {
+            const m = document.getElementById('modal-tarjeta-control');
+            if (!m) return;
+            const isVisible = m.style.display === 'flex';
+            m.style.display = isVisible ? 'none' : 'flex';
+            if (!isVisible) {
+                actualizarTarjetaControlUI();
+            }
+        }
+
+        function actualizarTarjetaControlUI() {
+            const countEl = document.getElementById('count-paraderos-registrados');
+            if (countEl) countEl.textContent = historialParaderosChofer.length;
+
+            const unitEl = document.getElementById('tc-modal-unit');
+            const carrilEl = document.getElementById('tc-modal-carril');
+            const tiempoEl = document.getElementById('tc-modal-tiempo');
+            const totalEl = document.getElementById('tc-modal-total-p');
+            const velEl = document.getElementById('tc-modal-vel');
+            const listaCont = document.getElementById('tc-modal-lista');
+
+            if (unitEl) unitEl.textContent = codigoUnidad;
+            if (carrilEl) carrilEl.textContent = carrilActualUnidad === 'bajada' ? 'Bajada ⬇️ (Anta ➔ Cusco)' : 'Subida ⬆️ (Cusco ➔ Anta)';
+            if (velEl) velEl.textContent = `${Math.round(ultimaVelocidad || 0)} km/h`;
+            if (totalEl) totalEl.textContent = historialParaderosChofer.length;
+
+            const now = new Date();
+            const diffMs = Math.max(0, now.getTime() - (tiempoInicioRecorrido || now.getTime()));
+            const totalMin = Math.floor(diffMs / 60000);
+            const h = Math.floor(totalMin / 60);
+            const m = totalMin % 60;
+            if (tiempoEl) tiempoEl.textContent = `${String(h).padStart(2,'0')}h ${String(m).padStart(2,'0')}m`;
+
+            if (listaCont) {
+                if (historialParaderosChofer.length === 0) {
+                    listaCont.innerHTML = `
+                        <div style="text-align: center; padding: 25px; color: #94a3b8; font-size: 12px;">
+                            <div style="font-size: 24px; margin-bottom: 6px;">🚍</div>
+                            Aún no se han registrado paraderos en esta vuelta.<br>
+                            Se registrarán automáticamente al aproximarte a 120-150m.
+                        </div>
+                    `;
+                } else {
+                    listaCont.innerHTML = historialParaderosChofer.map((item, i) => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.06); border-radius: 8px; padding: 8px 12px; font-size: 12px;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="background: #10b981; color: white; width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800;">${i+1}</span>
+                                <div>
+                                    <strong style="color: white; display: block;">${item.paraderoNombre}</strong>
+                                    <span style="font-size: 10px; color: #94a3b8;">+${item.tiempoRelativoMin} min de viaje | ${item.velocidad} km/h</span>
+                                </div>
+                            </div>
+                            <span style="font-family: monospace; color: #38bdf8; font-weight: 700; font-size: 13px;">${item.hora}</span>
+                        </div>
+                    `).join('');
+                }
+            }
+        }
+
+        function reiniciarVueltaChofer() {
+            if (!confirm('¿Deseas iniciar una nueva vuelta? Esto reiniciará el contador de tiempo y la hoja de ruta de la unidad.')) return;
+            historialParaderosChofer = [];
+            anunciados.clear();
+            tiempoInicioRecorrido = Date.now();
+            try {
+                localStorage.setItem('tiempo_inicio_recorrido_' + codigoUnidad, tiempoInicioRecorrido);
+                localStorage.setItem('historial_paraderos_' + codigoUnidad, JSON.stringify([]));
+            } catch(e) {}
+            actualizarTarjetaControlUI();
+            mostrarToastConexion('🔄 Nueva vuelta iniciada. Hoja de ruta reiniciada.', 'success');
+        }
+
+        function anunciarParadero(p, dist) {
+            if (anunciados.has(p.id)) return;
+            anunciados.add(p.id);
+
+            // Aviso visual en cabina
+            const metros = dist ? `(a ${Math.round(dist)} m)` : '';
+            mostrarToastConexion(`🚏 ENTRANDO AL PARADERO: ${p.nombre} ${metros}`, 'success');
+
+            const cockpitStop = document.getElementById('cockpit-stop-name');
+            if (cockpitStop) cockpitStop.textContent = `🔔 ENTRANDO: ${p.nombre}`;
+
+            reproducirAudioParadero(p);
+        }
+
+        // ==============================================
+        // HORA Y MINUTO DEL RECORRIDO (CRONÓMETRO Y RELOJ)
+        // ==============================================
+        let tiempoInicioRecorrido = null;
+        try {
+            const savedInicio = localStorage.getItem('tiempo_inicio_recorrido_' + codigoUnidad);
+            if (savedInicio && !isNaN(parseInt(savedInicio))) {
+                tiempoInicioRecorrido = parseInt(savedInicio);
+            } else {
+                tiempoInicioRecorrido = Date.now();
+                localStorage.setItem('tiempo_inicio_recorrido_' + codigoUnidad, tiempoInicioRecorrido);
+            }
+        } catch(e) {
+            tiempoInicioRecorrido = Date.now();
+        }
+
+        function reiniciarRecorrido() {
+            tiempoInicioRecorrido = Date.now();
+            try {
+                localStorage.setItem('tiempo_inicio_recorrido_' + codigoUnidad, tiempoInicioRecorrido);
+            } catch(e) {}
+            actualizarHoraYRecorrido();
+        }
+
+        function actualizarHoraYRecorrido() {
+            const now = new Date();
+            // Hora y Minuto actuales
+            const horas = String(now.getHours()).padStart(2, '0');
+            const minutos = String(now.getMinutes()).padStart(2, '0');
+            const horaMinutoStr = `${horas}:${minutos}`;
+
+            const elClockHeader = document.getElementById('driver-live-clock');
+            const elClockCockpit = document.getElementById('cockpit-clock');
+            if (elClockHeader) elClockHeader.textContent = horaMinutoStr;
+            if (elClockCockpit) elClockCockpit.textContent = horaMinutoStr;
+
+            // Tiempo transcurrido en el recorrido (Horas y Minutos)
+            const diffMs = Math.max(0, now.getTime() - tiempoInicioRecorrido);
+            const totalMinutos = Math.floor(diffMs / 60000);
+            const horasViaje = Math.floor(totalMinutos / 60);
+            const minutosViaje = totalMinutos % 60;
+            const tripStr = `${String(horasViaje).padStart(2, '0')}h ${String(minutosViaje).padStart(2, '0')}m`;
+
+            const elTripHeader = document.getElementById('driver-trip-time');
+            const elTripCockpit = document.getElementById('cockpit-trip-timer');
+            if (elTripHeader) elTripHeader.textContent = tripStr;
+            if (elTripCockpit) elTripCockpit.textContent = tripStr;
+        }
+        setInterval(actualizarHoraYRecorrido, 1000);
+
+        // ==============================================
+        // CONTROL DE PERSPECTIVA Y MODO 3D DE CARRIL
+        // ==============================================
+        function toggleModo3D() {
+            setModo3D(!modo3DActivo);
+        }
+
+        function setModo3D(activo) {
+            modo3DActivo = false; // Forzado a 2D plano según requerimiento
+            const mapViewport = document.getElementById('map-viewport');
+            const cockpit = document.getElementById('lane-3d-cockpit');
+
+            if (mapViewport) {
+                mapViewport.classList.remove('mode-3d-active');
+            }
+            if (cockpit) {
+                cockpit.style.display = 'block';
+            }
+            if (map) {
+                setTimeout(() => map.invalidateSize(), 300);
+            }
+            try {
+                localStorage.setItem('modo3d_unidad_' + codigoUnidad, 'false');
+            } catch(e) {}
+        }
+
+        // ==============================================
+        // SISTEMA DE ALERTA DE TRÁFICO EN PANTALLA
+        // ==============================================
+        let estadoTraficoActual = 'fluido'; // 'fluido', 'moderado', 'pesado'
+        let contadorVelocidadBaja = 0; // segundos consecutivos en marcha lenta fuera de paradero
+        let alertaTraficoActiva = false;
+        let ultimoTiempoAlerta = 0;
+
+        function emitirSonidoAlertaTrafico() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+                const now = ctx.currentTime;
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(440, now);
+                osc.frequency.setValueAtTime(880, now + 0.15);
+                osc.frequency.setValueAtTime(440, now + 0.3);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+                osc.start(now);
+                osc.stop(now + 0.5);
+            } catch(e) {}
+        }
+
+        function reproducirVozAlertaTrafico(customMsg) {
+            if (!('speechSynthesis' in window)) return;
+            try {
+                window.speechSynthesis.cancel();
+                const msg = customMsg || 'Atención conductor: Alerta de congestión y tráfico lento en su carril. Conduzca con precaución y mantenga su distancia de seguridad.';
+                const utterance = new SpeechSynthesisUtterance(msg);
+                utterance.lang = 'es-ES';
+                const voices = window.speechSynthesis.getVoices();
+                if (voices && voices.length > 0) {
+                    const esVoice = voices.find(v => v.lang && v.lang.toLowerCase().startsWith('es'));
+                    if (esVoice) utterance.voice = esVoice;
+                }
+                if (config.defaultRate) utterance.rate = parseFloat(config.defaultRate);
+                window.speechSynthesis.speak(utterance);
+            } catch(e) {}
+        }
+
+        function activarAlertaTrafico(datos = {}) {
+            alertaTraficoActiva = true;
+            estadoTraficoActual = datos.nivel || 'pesado';
+
+            const modal = document.getElementById('traffic-alert-modal');
+            const desc = document.getElementById('traffic-alert-desc');
+            const timeEl = document.getElementById('traffic-alert-time-val');
+            const speedEl = document.getElementById('traffic-alert-speed-val');
+            const statusLbl = document.getElementById('traffic-alert-status-lbl');
+
+            const now = new Date();
+            const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+
+            if (timeEl) timeEl.textContent = timeStr;
+            if (speedEl) speedEl.textContent = `${Math.round(ultimaVelocidad || 0)} km/h`;
+            if (statusLbl) {
+                statusLbl.textContent = estadoTraficoActual === 'moderado' ? '🟡 Tráfico Moderado' : '🔴 Tráfico Pesado / Congestión';
+            }
+
+            if (desc) {
+                desc.innerHTML = datos.mensaje || `Se detecta <strong>congestión vehicular y marcha lenta</strong> en el ${carrilActualUnidad === 'subida' ? 'Carril de Subida (Cusco ➔ Anta)' : 'Carril de Bajada (Anta ➔ Cusco)'}. Retraso estimado de <strong>+10 a 15 min</strong> en el recorrido. Conduzca con precaución.`;
+            }
+
+            if (modal) {
+                modal.style.display = 'flex';
+            }
+
+            actualizarBadgesTrafico(estadoTraficoActual);
+            emitirSonidoAlertaTrafico();
+
+            if (Date.now() - ultimoTiempoAlerta > 35000) {
+                ultimoTiempoAlerta = Date.now();
+                reproducirVozAlertaTrafico(datos.mensajeVocal);
+            }
+        }
+
+        function activarAlertaTraficoManual() {
+            activarAlertaTrafico({
+                nivel: 'pesado',
+                mensaje: `⚠️ <strong>Prueba de Alerta:</strong> Congestión vehicular simulada en el ${carrilActualUnidad === 'subida' ? 'Carril de Subida (Cusco ➔ Anta)' : 'Carril de Bajada (Anta ➔ Cusco)'}. Retraso estimado: +12 min en el recorrido.`,
+                mensajeVocal: 'Atención conductor: Alerta de prueba de congestión y tráfico lento en su carril. Conduzca con precaución.'
+            });
+        }
+
+        function descartarAlertaTrafico() {
+            alertaTraficoActiva = false;
+            const modal = document.getElementById('traffic-alert-modal');
+            if (modal) modal.style.display = 'none';
+        }
+
+        function mostrarDetalleAlertaTrafico() {
+            if (estadoTraficoActual === 'pesado' || estadoTraficoActual === 'moderado') {
+                activarAlertaTrafico({
+                    nivel: estadoTraficoActual
+                });
+            } else {
+                activarAlertaTraficoManual();
+            }
+        }
+
+        function actualizarBadgesTrafico(nivel) {
+            estadoTraficoActual = nivel;
+            const pillHeader = document.getElementById('driver-traffic-pill');
+            const textHeader = document.getElementById('driver-traffic-text');
+            const cockpitStatus = document.getElementById('cockpit-traffic-status');
+            const cockpitBadge = document.getElementById('cockpit-traffic-badge');
+
+            if (nivel === 'pesado') {
+                if (pillHeader) {
+                    pillHeader.className = 'traffic-status-pill traffic-congested';
+                    if (textHeader) textHeader.textContent = '🔴 Tráfico Pesado';
+                }
+                if (cockpitStatus) {
+                    cockpitStatus.textContent = 'Congestión';
+                    cockpitStatus.style.color = '#f43f5e';
+                }
+                if (cockpitBadge) {
+                    cockpitBadge.textContent = '🔴 Alerta Congestión';
+                    cockpitBadge.style.background = 'rgba(244,63,94,0.25)';
+                    cockpitBadge.style.color = '#f87171';
+                }
+            } else if (nivel === 'moderado') {
+                if (pillHeader) {
+                    pillHeader.className = 'traffic-status-pill traffic-moderate';
+                    if (textHeader) textHeader.textContent = '🟡 Tráfico Moderado';
+                }
+                if (cockpitStatus) {
+                    cockpitStatus.textContent = 'Moderado';
+                    cockpitStatus.style.color = '#fbbf24';
+                }
+                if (cockpitBadge) {
+                    cockpitBadge.textContent = '🟡 Tráfico Moderado';
+                    cockpitBadge.style.background = 'rgba(245,158,11,0.2)';
+                    cockpitBadge.style.color = '#fbbf24';
+                }
+            } else {
+                if (pillHeader) {
+                    pillHeader.className = 'traffic-status-pill traffic-fluid';
+                    if (textHeader) textHeader.textContent = '🟢 Vía Fluida';
+                }
+                if (cockpitStatus) {
+                    cockpitStatus.textContent = 'Fluido';
+                    cockpitStatus.style.color = '#34d399';
+                }
+                if (cockpitBadge) {
+                    cockpitBadge.textContent = '🟢 Tráfico Normal';
+                    cockpitBadge.style.background = 'rgba(16,185,129,0.2)';
+                    cockpitBadge.style.color = '#34d399';
+                }
+            }
+        }
+
+        // Recepción de alertas de tráfico emitidas por el Administrador
+        if (socket) {
+            socket.on('alertaTrafico', (data) => {
+                if (data) activarAlertaTrafico(data);
+            });
+            socket.on('admin:alertaTrafico', (data) => {
+                if (data) activarAlertaTrafico(data);
+            });
+        }
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'alerta_trafico_global' && e.newValue) {
+                try {
+                    const data = JSON.parse(e.newValue);
+                    if (data && Date.now() - data.timestamp < 35000) {
+                        activarAlertaTrafico(data);
+                    }
+                } catch(err) {}
+            }
+        });
+
+        function verificarParaderos(lat, lng) {
+            let paraderoMasCercano = null;
+            let distMinima = Infinity;
+
+            // Radio dinámico de aproximación automática según velocidad del bus:
+            // A > 35 km/h: detecta a 150 metros para que el aviso concluya con tiempo anticipado.
+            // A <= 35 km/h: detecta a 125 metros de aproximación.
+            const radioEntradaParadero = (ultimaVelocidad > 35) ? 150 : 125;
+
+            paraderos.forEach(p => {
+                const dist = haversineDistance(lat, lng, parseFloat(p.lat), parseFloat(p.lng));
+                const span = document.getElementById('dist-' + p.id);
+                if (span) {
+                    span.textContent = dist < 1000 ? `${Math.round(dist)} m` : `${(dist/1000).toFixed(2)} km`;
+                }
+
+                if (dist < distMinima) {
+                    distMinima = dist;
+                    paraderoMasCercano = p;
+                }
+
+                // Filtrar estrictamente por sentido del carril para que no se anuncien paraderos del lado opuesto de la vía
+                const stopSentido = p.sentido || 'subida';
+                const sentidoValido = (carrilActualUnidad === 'todos') || (stopSentido === carrilActualUnidad) || (stopSentido === 'ambos');
+
+                // Disparo automático cuando el bus está entrando al paradero
+                if (sentidoValido && dist <= radioEntradaParadero) {
+                    anunciarParadero(p, dist);
+                }
+
+                // Si la unidad se aleja más de 220m, liberar para que pueda volver a anunciarse en el siguiente trayecto
+                if (dist > 220 && anunciados.has(p.id)) {
+                    anunciados.delete(p.id);
+                }
+            });
+
+            // Actualizar hito del próximo paradero en el cockpit 3D
+            if (paraderoMasCercano) {
+                const stopNameEl = document.getElementById('cockpit-stop-name');
+                const stopDistEl = document.getElementById('cockpit-stop-dist');
+                if (stopNameEl) stopNameEl.textContent = paraderoMasCercano.nombre;
+                if (stopDistEl) {
+                    stopDistEl.textContent = distMinima < 1000 ? `${Math.round(distMinima)} m` : `${(distMinima/1000).toFixed(2)} km`;
+                }
+            }
+        }
+
+        // Rastreo GPS Nativo y Monitoreo de Tráfico
+        if (navigator.geolocation) {
+            navigator.geolocation.watchPosition(
+                (pos) => {
+                    const lat = pos.coords.latitude;
+                    const lng = pos.coords.longitude;
+                    const speed = pos.coords.speed ? Math.round(pos.coords.speed * 3.6) : 0;
+                    ultimaVelocidad = speed;
+
+                    document.getElementById('coords').textContent = `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+                    document.getElementById('hud-vel').textContent = `${speed} km/h`;
+
+                    const cockpitSpeed = document.getElementById('cockpit-speed-val');
+                    if (cockpitSpeed) cockpitSpeed.textContent = `${speed} km/h`;
+
+                    // Detección automática de tráfico por velocidad reducida en recorrido
+                    if (speed > 0 && speed < 14) {
+                        contadorVelocidadBaja++;
+                        if (contadorVelocidadBaja >= 15 && !alertaTraficoActiva) {
+                            activarAlertaTrafico({
+                                nivel: 'pesado',
+                                mensaje: `Tráfico pesado detectado automáticamente en ruta PE-3S. Velocidad actual: ${Math.round(speed)} km/h. Retraso estimado: +12 min en el recorrido.`
+                            });
+                        } else if (contadorVelocidadBaja >= 6) {
+                            actualizarBadgesTrafico('moderado');
+                        }
+                    } else if (speed >= 22) {
+                        contadorVelocidadBaja = 0;
+                        if (estadoTraficoActual !== 'fluido') {
+                            actualizarBadgesTrafico('fluido');
+                        }
+                    }
+
+                    if (!map) initMap();
+
+                    if (marker) {
+                        marker.setLatLng([lat, lng]);
+                    } else {
+                        const customIcon = L.divIcon({
+                            className: 'bus-driver-marker',
+                            html: '<div style="width: 38px; height: 38px; background: #10b981; border: 2px solid white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 20px; box-shadow: 0 0 15px #10b981;">🚍</div>',
+                            iconSize: [38, 38],
+                            iconAnchor: [19, 19]
+                        });
+                        marker = L.marker([lat, lng], { icon: customIcon }).addTo(map);
+                    }
+                    map.setView([lat, lng], 17);
+
+                    // Detección y cambio automático de sentido (Bajada o Subida) según rumbo GPS
+                    if (pos.coords.heading !== null && !isNaN(pos.coords.heading) && speed >= 8) {
+                        actualizarSentidoSegunRumbo(pos.coords.heading);
+                    } else if (ultimaUbicacionGPS && ultimaUbicacionGPS.lat && speed >= 8) {
+                        const distM = haversineDistance(ultimaUbicacionGPS.lat, ultimaUbicacionGPS.lng, lat, lng);
+                        if (distM >= 8) {
+                            const rumboCalculado = calcularRumboGPS(ultimaUbicacionGPS.lat, ultimaUbicacionGPS.lng, lat, lng);
+                            actualizarSentidoSegunRumbo(rumboCalculado);
+                        }
+                    }
+
+                    // Envío tolerante a fallos de red con almacenamiento en memoria local
+                    enviarUbicacionAlServidor(lat, lng, speed);
+
+                    verificarParaderos(lat, lng);
+                },
+                (err) => {
+                    console.warn('GPS advertencia / timeout:', err.message);
+                    // Si el GPS tarda por corte de señal, continuar evaluando paraderos con la última posición conocida
+                    if (ultimaUbicacionGPS && ultimaUbicacionGPS.lat) {
+                        verificarParaderos(ultimaUbicacionGPS.lat, ultimaUbicacionGPS.lng);
+                    }
+                },
+                { enableHighAccuracy: true, timeout: 8000, maximumAge: 2000 }
+            );
+
+            // Watchdog GPS para reactivar de inmediato la ubicación si el dispositivo duerme el sensor por corte de internet
+            setInterval(() => {
+                if (navigator.geolocation && (!ultimaUbicacionGPS || Date.now() - ultimaUbicacionGPS.timestamp > 7000)) {
+                    navigator.geolocation.getCurrentPosition(
+                        (p) => {
+                            const lat = p.coords.latitude;
+                            const lng = p.coords.longitude;
+                            const speed = p.coords.speed ? Math.round(p.coords.speed * 3.6) : 0;
+                            guardarUbicacionMemoria(lat, lng, speed);
+                            if (map && marker) marker.setLatLng([lat, lng]);
+                            verificarParaderos(lat, lng);
+                            enviarUbicacionAlServidor(lat, lng, speed);
+                        },
+                        () => {},
+                        { enableHighAccuracy: true, timeout: 4000, maximumAge: 3000 }
+                    );
+                }
+            }, 5000);
+        }
+
+        window.addEventListener('load', () => {
+            initMap();
+            // Iniciar modo 3D y carril según preferencia guardada
+            setModo3D(false);
+            cambiarCarrilUnidad(carrilActualUnidad);
+            actualizarHoraYRecorrido();
+
+            if (map) {
+                setTimeout(() => {
+                    map.invalidateSize();
+                    centrarRutaAntaCuscoChofer();
+                }, 200);
+            }
+        });
+    </script>
+</body>
+</html>
